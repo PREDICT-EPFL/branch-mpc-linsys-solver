@@ -63,7 +63,8 @@ class OneLevelTreeCholesky:
     """
 
     def __init__(self, num_tails, tail_length, block_size,
-                 dtype=wp.float64, device="cuda", root_block_dim=128):
+                 dtype=wp.float64, device="cuda", root_block_dim=128,
+                 num_rhs=None, use_cuda_graph=True):
         if num_tails < 1:
             raise ValueError(f"num_tails must be >= 1, got {num_tails}")
         if tail_length < 1:
@@ -87,6 +88,7 @@ class OneLevelTreeCholesky:
         self.block_size = int(block_size)
         self.dtype = dtype
         self.root_block_dim = int(root_block_dim)
+        self.use_cuda_graph = bool(use_cuda_graph)
 
         self.interface_pos = interface_position(self.tail_length)
         self._n_off = calculate_off_diag_storage_len(self.tail_length)
@@ -97,12 +99,21 @@ class OneLevelTreeCholesky:
         self._v = {}                 # q -> tail solution buffer (B, T, n, q)
         self._reduced_rhs = {}       # q -> (1, n, q)
         self._x_tail = {}            # q -> (B, T, n, q)
+        self._rhs_updates = {}       # q -> (B, n, q)  per-tail Stage-A products
         self._tail_solve_launch = {} # q -> cached SOCU solve launch
+
+        # CUDA-graph handles: captured once (after a warm compile), replayed
+        # thereafter to remove per-launch host overhead on repeated calls.
+        self._factor_graph = None
+        self._solve_graph = {}       # q -> captured solve graph
 
         self._factored = False
         self._tail_ok = None
         self._root_ok = None
         self._status_read = False
+
+        if num_rhs is not None:
+            self._ensure_q_buffers(int(num_rhs))
 
     # ------------------------------------------------------------------ setup
     def _allocate_persistent_buffers(self):
@@ -117,6 +128,8 @@ class OneLevelTreeCholesky:
         self._root_diag = wp.zeros((1, n, n), dtype=dt, device=dev)
         # U_i = K_i^{-1} C_i  (n right-hand-side columns), reused across solves
         self._U = wp.zeros((B, T, n, n), dtype=dt, device=dev)
+        # per-tail Schur products M_i = G_i^T U_i[interface]  (Phase-2 Stage A)
+        self._schur_updates = wp.zeros((B, n, n), dtype=dt, device=dev)
         # root Schur complement and its Cholesky factor
         self._root_schur = wp.zeros((1, n, n), dtype=dt, device=dev)
         self._root_factor = wp.zeros((1, n, n), dtype=dt, device=dev)
@@ -167,6 +180,10 @@ class OneLevelTreeCholesky:
                   check=True):
         """Perform all matrix-dependent work (reusable across right-hand sides).
 
+        Host-convenience wrapper: accepts NumPy or Warp arrays and (by default)
+        checks the factorization status, which forces a device sync. For the
+        allocation-/sync-free fast path use :meth:`factorize_device`.
+
         Shapes
         ------
         root_diag           : ``(n, n)`` or ``(1, n, n)``
@@ -175,9 +192,44 @@ class OneLevelTreeCholesky:
         root_tail_coupling  : ``(B, n, n)``  (the blocks ``G_i``)
         """
         self._stage_matrix(root_diag, tail_diag, tail_offdiag, root_tail_coupling)
-        self._factorize_numeric()
+        self._run_factorize()
         self._update_status(check=check)
         return self
+
+    def factorize_device(self, root_diag, tail_diag, tail_offdiag,
+                         root_tail_coupling, check_status=False):
+        """Device-native factorization: Warp arrays only, no host round trips.
+
+        Accepts only CUDA Warp arrays of the solver's dtype/device. Stages them
+        with device-to-device copies (no ``.numpy()``, no host temporaries),
+        then runs the factorization (replaying the captured CUDA graph after the
+        first call). With ``check_status=False`` (default) nothing is read back,
+        so the call only enqueues work -- no implicit synchronization. Use
+        :meth:`synchronize_and_check` to validate the factorization.
+        """
+        for name, a in (("root_diag", root_diag), ("tail_diag", tail_diag),
+                        ("root_tail_coupling", root_tail_coupling)):
+            self._require_device_array(a, name)
+        if self.tail_length > 1:
+            self._require_device_array(tail_offdiag, "tail_offdiag")
+
+        self._stage_matrix(root_diag, tail_diag, tail_offdiag, root_tail_coupling)
+        self._run_factorize()
+        # Launches the breakdown-detection kernels (async, populates the device
+        # status flags); reads back to the host only when check_status=True.
+        self._update_status(check=check_status)
+        return self
+
+    def _require_device_array(self, a, name):
+        if not isinstance(a, wp.array):
+            raise TypeError(f"{name}: device path requires a warp.array, got {type(a)}")
+        if a.device != self._device:
+            raise ValueError(
+                f"{name}: array on {a.device}, expected {self._device}")
+        if a.dtype != self.dtype:
+            raise TypeError(f"{name}: dtype {a.dtype}, expected {self.dtype}")
+        if not a.is_contiguous:
+            raise ValueError(f"{name}: array must be contiguous")
 
     def _stage_matrix(self, root_diag, tail_diag, tail_offdiag,
                       root_tail_coupling):
@@ -221,7 +273,7 @@ class OneLevelTreeCholesky:
     def _factorize_numeric(self):
         """Run the matrix-dependent numeric factorization (no staging, no host
         sync).  Assumes :meth:`_stage_matrix` populated the buffers."""
-        B, T, n = self.num_tails, self.tail_length, self.block_size
+        B, n = self.num_tails, self.block_size
 
         # 1. Factorize all B block-tridiagonal tails in one batched SOCU call.
         self._tail_factor_launch()
@@ -240,17 +292,26 @@ class OneLevelTreeCholesky:
         # 3. Solve K_i U_i = C_i for every tail (batched), reusing the factor.
         self._coupling_solve_launch()
 
-        # 4. Form the root Schur complement S0 = D0 - sum_i G_i^T U_i[interface].
+        # 4. Phase-2 Stage A: per-tail Schur products M_i = G_i^T U_i[interface]
+        #    in parallel across tails (dim=[B]).
         wp.launch_tiled(
-            _k.create_build_root_schur_kernel(n, self.dtype),
-            dim=[1],
-            inputs=[B, self.interface_pos, self._root_diag, self._G,
-                    self._U, self._root_schur],
+            _k.create_schur_update_kernel(n, self.dtype),
+            dim=[B],
+            inputs=[self.interface_pos, self._G, self._U, self._schur_updates],
             block_dim=self.root_block_dim,
             device=self._device,
         )
 
-        # 5. Factorize the root Schur complement on the GPU.
+        # 5. Stage B (light): S0 = D0 - sum_i M_i.
+        wp.launch_tiled(
+            _k.create_reduce_schur_kernel(n, self.dtype),
+            dim=[1],
+            inputs=[B, self._root_diag, self._schur_updates, self._root_schur],
+            block_dim=self.root_block_dim,
+            device=self._device,
+        )
+
+        # 6. Factorize the root Schur complement on the GPU.
         wp.copy(self._root_factor, self._root_schur)
         wp.launch_tiled(
             _k.create_root_factor_kernel(n, self.dtype),
@@ -260,6 +321,21 @@ class OneLevelTreeCholesky:
             device=self._device,
         )
         self._factored = True
+
+    def _run_factorize(self):
+        """Execute the numeric factorization, replaying a captured CUDA graph
+        after the first (warm) call when ``use_cuda_graph`` is set."""
+        if not self.use_cuda_graph:
+            self._factorize_numeric()
+            return
+        if self._factor_graph is None:
+            self._factorize_numeric()          # compile kernels + real compute
+            with wp.ScopedCapture(device=self._device) as cap:
+                self._factorize_numeric()      # record only (no execution)
+            self._factor_graph = cap.graph     # this call's result already valid
+        else:
+            wp.capture_launch(self._factor_graph)
+            self._factored = True
 
     def _update_status(self, check):
         """Launch the Cholesky-breakdown detection kernels.
@@ -363,6 +439,7 @@ class OneLevelTreeCholesky:
             self._v[q] = wp.zeros((B, T, n, q), dtype=dt, device=dev)
             self._reduced_rhs[q] = wp.zeros((1, n, q), dtype=dt, device=dev)
             self._x_tail[q] = wp.zeros((B, T, n, q), dtype=dt, device=dev)
+            self._rhs_updates[q] = wp.zeros((B, n, q), dtype=dt, device=dev)
             self._tail_solve_launch[q] = create_cholesky_solve_launch(
                 self._L, self._E, self._v[q], device=dev, dtype=dt)
 
@@ -388,17 +465,28 @@ class OneLevelTreeCholesky:
         # 1. batched tail solve v_i = K_i^{-1} r_i
         self._tail_solve_launch[q]()
 
-        # 2. reduced root rhs r0_hat = r0 - sum_i G_i^T v_i[interface]
+        # 2. Phase-2 Stage A: per-tail rhs products g_i = G_i^T v_i[interface]
+        #    in parallel across tails (dim=[B]).
         wp.launch_tiled(
-            _k.create_build_reduced_root_rhs_kernel(n, q, self.dtype),
-            dim=[1],
-            inputs=[B, self.interface_pos, self._reduced_rhs[q], self._G,
-                    self._v[q], self._reduced_rhs[q]],
+            _k.create_rhs_update_kernel(n, q, self.dtype),
+            dim=[B],
+            inputs=[self.interface_pos, self._G, self._v[q],
+                    self._rhs_updates[q]],
             block_dim=self.root_block_dim,
             device=self._device,
         )
 
-        # 3. root solve x0 = S0^{-1} r0_hat (overwrites _reduced_rhs in place)
+        # 3. Stage B (light): r0_hat = r0 - sum_i g_i.
+        wp.launch_tiled(
+            _k.create_reduce_rhs_kernel(n, q, self.dtype),
+            dim=[1],
+            inputs=[B, self._reduced_rhs[q], self._rhs_updates[q],
+                    self._reduced_rhs[q]],
+            block_dim=self.root_block_dim,
+            device=self._device,
+        )
+
+        # 4. root solve x0 = S0^{-1} r0_hat (overwrites _reduced_rhs in place)
         wp.launch_tiled(
             _k.create_root_solve_kernel(n, q, self.dtype),
             dim=[1],
@@ -407,7 +495,7 @@ class OneLevelTreeCholesky:
             device=self._device,
         )
 
-        # 4. recover tails w_i = v_i - U_i x0
+        # 5. recover tails w_i = v_i - U_i x0
         wp.launch_tiled(
             _k.create_recover_tails_kernel(n, q, self.dtype),
             dim=[B, T],
@@ -416,11 +504,27 @@ class OneLevelTreeCholesky:
             device=self._device,
         )
 
+    def _run_solve(self, q):
+        """Execute the numeric solve for ``q`` rhs, replaying a captured CUDA
+        graph after the first (warm) call when ``use_cuda_graph`` is set."""
+        if not self.use_cuda_graph:
+            self._solve_numeric(q)
+            return
+        if self._solve_graph.get(q) is None:
+            self._solve_numeric(q)             # compile kernels + real compute
+            with wp.ScopedCapture(device=self._device) as cap:
+                self._solve_numeric(q)         # record only (no execution)
+            self._solve_graph[q] = cap.graph   # this call's result already valid
+        else:
+            wp.capture_launch(self._solve_graph[q])
+
     def solve(self, rhs_root, rhs_tail, copy_to_host=True):
         """Solve the tree system for the given right-hand side(s).
 
-        Reuses the factorization from :meth:`factorize`; only rhs-dependent work
-        is performed.  Returns ``(x_root, x_tail)``.
+        Host-convenience wrapper (accepts NumPy or Warp arrays). Reuses the
+        factorization; only rhs-dependent work is performed. Returns
+        ``(x_root, x_tail)``. For the allocation-/sync-free fast path use
+        :meth:`solve_device`.
 
         With ``copy_to_host=True`` (default) numpy arrays are returned with
         shapes ``(n, q)`` / ``(B, T, n, q)`` (``q`` squeezed for a single vector
@@ -438,7 +542,7 @@ class OneLevelTreeCholesky:
         rr, rt, q, squeeze = self._normalize_rhs(rhs_root, rhs_tail)
         self._ensure_q_buffers(q)
         self._stage_rhs(q, rr, rt)
-        self._solve_numeric(q)
+        self._run_solve(q)
 
         x_root = self._reduced_rhs[q]      # (1, n, q), physical == tree order
         x_tail = self._x_tail[q]           # (B, T, n, q), physical tail order
@@ -452,6 +556,89 @@ class OneLevelTreeCholesky:
             x_root_np = x_root_np[..., 0]
             x_tail_np = x_tail_np[..., 0]
         return x_root_np, x_tail_np
+
+    def solve_device(self, rhs_root, rhs_tail, out_root=None, out_tail=None,
+                     check_status=False):
+        """Device-native solve: Warp arrays only, no host round trips.
+
+        ``rhs_tail`` must be a contiguous ``(B, T, n, q)`` Warp array and
+        ``rhs_root`` a ``(1, n, q)`` or ``(n, q)`` Warp array (all of the
+        solver's dtype/device). Right-hand sides are staged with
+        device-to-device copies (no ``.numpy()``); the numeric solve runs via
+        the captured CUDA graph.
+
+        If ``out_root`` / ``out_tail`` are provided they must be contiguous Warp
+        arrays of shape ``(1, n, q)`` (or ``(n, q)``) and ``(B, T, n, q)``; the
+        solution is copied into them. Otherwise the solver's internal buffers
+        ``(_reduced_rhs[q], _x_tail[q])`` are returned directly (no copy).
+
+        With ``check_status=False`` (default) no status is read, so the call
+        only enqueues work (no implicit synchronization).
+        """
+        if not self._factored:
+            raise RuntimeError("solve_device() called before factorize")
+        if check_status:
+            self._read_status()
+            if not (self._tail_ok and self._root_ok):
+                raise RuntimeError("solve_device() on a failed factorization")
+
+        B, T, n = self.num_tails, self.tail_length, self.block_size
+        self._require_device_array(rhs_tail, "rhs_tail")
+        if tuple(rhs_tail.shape) != (B, T, n) and tuple(rhs_tail.shape) != (B, T, n, 1) \
+                and rhs_tail.shape[:3] != (B, T, n):
+            raise ValueError(
+                f"rhs_tail: expected leading dims {(B, T, n)}, got {tuple(rhs_tail.shape)}")
+        rt = rhs_tail
+        if rt.ndim == 3:
+            rt = rt.reshape((B, T, n, 1))
+        q = rt.shape[3]
+
+        self._require_device_array(rhs_root, "rhs_root")
+        rr = rhs_root
+        if rr.ndim == 2:
+            if tuple(rr.shape) != (n, q):
+                raise ValueError(f"rhs_root: expected {(n, q)}, got {tuple(rr.shape)}")
+            rr = rr.reshape((1, n, q))
+        elif tuple(rr.shape) != (1, n, q):
+            raise ValueError(f"rhs_root: expected {(1, n, q)} or {(n, q)}, got {tuple(rr.shape)}")
+
+        self._ensure_q_buffers(q)
+        wp.copy(self._v[q], rt)
+        wp.copy(self._reduced_rhs[q], rr)
+        self._run_solve(q)
+
+        x_root = self._reduced_rhs[q]      # (1, n, q)
+        x_tail = self._x_tail[q]           # (B, T, n, q)
+
+        if out_root is not None:
+            self._require_device_array(out_root, "out_root")
+            dst = out_root.reshape((1, n, q)) if out_root.ndim == 2 else out_root
+            wp.copy(dst, x_root)
+            x_root = out_root
+        if out_tail is not None:
+            self._require_device_array(out_tail, "out_tail")
+            wp.copy(out_tail, x_tail)
+            x_tail = out_tail
+        return x_root, x_tail
+
+    def synchronize_and_check(self):
+        """Synchronize the device, read the factorization status flags, and
+        raise ``RuntimeError`` on a Cholesky breakdown. This is the explicit
+        (sync-incurring) counterpart to the async ``*_device`` fast path."""
+        if not self._factored:
+            raise RuntimeError("synchronize_and_check() called before factorize")
+        self._update_status(check=False)   # (re)launch status kernels
+        wp.synchronize_device(self._device)
+        self._read_status()
+        if not self._tail_ok:
+            raise RuntimeError(
+                "Cholesky factorization failed for at least one tail matrix "
+                "(non-SPD / indefinite).")
+        if not self._root_ok:
+            raise RuntimeError(
+                "Cholesky factorization of the root Schur complement failed "
+                "(non-SPD).")
+        return True
 
     def factorize_and_solve(self, root_diag, tail_diag, tail_offdiag,
                             root_tail_coupling, rhs_root, rhs_tail,
@@ -490,6 +677,21 @@ class OneLevelTreeCholesky:
             return None
         self._read_status()
         return bool(self._tail_ok and self._root_ok)
+
+    @property
+    def tail_status_device(self):
+        """Device-side tail status flag ``(int32,)``: 1 == ok.
+
+        Populated by the breakdown-detection kernels launched during
+        ``factorize``/``factorize_device`` (no host read). Reading its value
+        (``.numpy()``) forces a synchronization -- avoid on the fast path."""
+        return self._tail_status
+
+    @property
+    def root_status_device(self):
+        """Device-side root status flag ``(int32,)``: 1 == ok. See
+        :attr:`tail_status_device`."""
+        return self._root_status
 
     def compute_residual(self, root_diag, tail_diag, tail_offdiag,
                          root_tail_coupling, rhs_root, rhs_tail,

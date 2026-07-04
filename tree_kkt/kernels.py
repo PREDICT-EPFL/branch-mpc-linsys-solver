@@ -104,6 +104,105 @@ def create_build_reduced_root_rhs_kernel(n: int, n_rhs: int, dtype=wp.float64):
 
 
 @lru_cache(maxsize=None)
+def create_schur_update_kernel(n: int, dtype=wp.float64):
+    """Phase-2 Stage A: per-tail Schur product ``M_i = G_i^T U_i[interface]``.
+
+    Launched with ``dim=[B]`` so the (expensive) ``n x n`` products run in
+    parallel across tails, instead of the previous single-tile serial loop.
+    ``out`` has shape ``(B, n, n)``.
+    """
+    module = wp.Module('tree_schur_update_kernel', None)
+    module.options['enable_backward'] = False
+
+    @wp.kernel(module=module)
+    def schur_update_kernel(interface_pos: int,
+                            G: wp.array3d(dtype=dtype),   # type: ignore
+                            U: wp.array4d(dtype=dtype),    # type: ignore
+                            out: wp.array3d(dtype=dtype)):  # type: ignore
+        i = wp.tid()
+        Gi = wp.tile_load(G[i], shape=(n, n))
+        Ui = wp.tile_load(U[i, interface_pos], shape=(n, n))
+        GiT = wp.tile_transpose(Gi)
+        M = wp.tile_zeros(shape=(n, n), dtype=dtype)
+        wp.tile_matmul(GiT, Ui, M)          # M_i = G_i^T U_i
+        wp.tile_store(out[i], M)
+
+    return schur_update_kernel
+
+
+@lru_cache(maxsize=None)
+def create_rhs_update_kernel(n: int, n_rhs: int, dtype=wp.float64):
+    """Phase-2 Stage A: per-tail rhs product ``g_i = G_i^T v_i[interface]``.
+
+    Launched with ``dim=[B]``; ``out`` has shape ``(B, n, q)``.
+    """
+    module = wp.Module('tree_rhs_update_kernel', None)
+    module.options['enable_backward'] = False
+
+    @wp.kernel(module=module)
+    def rhs_update_kernel(interface_pos: int,
+                          G: wp.array3d(dtype=dtype),   # type: ignore
+                          v: wp.array4d(dtype=dtype),    # type: ignore
+                          out: wp.array3d(dtype=dtype)):  # type: ignore
+        i = wp.tid()
+        Gi = wp.tile_load(G[i], shape=(n, n))
+        vi = wp.tile_load(v[i, interface_pos], shape=(n, n_rhs))
+        GiT = wp.tile_transpose(Gi)
+        g = wp.tile_zeros(shape=(n, n_rhs), dtype=dtype)
+        wp.tile_matmul(GiT, vi, g)          # g_i = G_i^T v_i
+        wp.tile_store(out[i], g)
+
+    return rhs_update_kernel
+
+
+@lru_cache(maxsize=None)
+def create_reduce_schur_kernel(n: int, dtype=wp.float64):
+    """Phase-2 Stage B (light): ``S0 = D0 - sum_i M_i``.
+
+    Single tile; the sum of ``B`` small ``n x n`` matrices is cheap (the
+    expensive products were parallelized in Stage A), so a serial accumulate is
+    used rather than a full log-B tree (see plan.md discussion).
+    """
+    module = wp.Module('tree_reduce_schur_kernel', None)
+    module.options['enable_backward'] = False
+
+    @wp.kernel(module=module)
+    def reduce_schur_kernel(num_tails: int,
+                            D0: wp.array3d(dtype=dtype),      # type: ignore
+                            updates: wp.array3d(dtype=dtype),  # type: ignore
+                            out: wp.array3d(dtype=dtype)):     # type: ignore
+        _ = wp.tid()
+        S = wp.tile_load(D0[0], shape=(n, n))
+        for i in range(num_tails):
+            Mi = wp.tile_load(updates[i], shape=(n, n))
+            S = S - Mi
+        wp.tile_store(out[0], S)
+
+    return reduce_schur_kernel
+
+
+@lru_cache(maxsize=None)
+def create_reduce_rhs_kernel(n: int, n_rhs: int, dtype=wp.float64):
+    """Phase-2 Stage B (light): ``r0_hat = r0 - sum_i g_i``. Single tile."""
+    module = wp.Module('tree_reduce_rhs_kernel', None)
+    module.options['enable_backward'] = False
+
+    @wp.kernel(module=module)
+    def reduce_rhs_kernel(num_tails: int,
+                          r0: wp.array3d(dtype=dtype),       # type: ignore
+                          updates: wp.array3d(dtype=dtype),   # type: ignore
+                          out: wp.array3d(dtype=dtype)):      # type: ignore
+        _ = wp.tid()
+        r = wp.tile_load(r0[0], shape=(n, n_rhs))
+        for i in range(num_tails):
+            gi = wp.tile_load(updates[i], shape=(n, n_rhs))
+            r = r - gi
+        wp.tile_store(out[0], r)
+
+    return reduce_rhs_kernel
+
+
+@lru_cache(maxsize=None)
 def create_root_factor_kernel(n: int, dtype=wp.float64):
     """In-place dense Cholesky ``S0 = L0 L0^T`` of the ``n x n`` root Schur block.
 
