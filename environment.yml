@@ -1,0 +1,22 @@
+# Conda environment used for all reported experiments (env name: socu).
+# GPU: NVIDIA GeForce RTX 5090 (32 GB), driver 580.159.03.
+name: socu
+channels:
+  - conda-forge
+dependencies:
+  - python=3.12.12
+  - numpy=2.2.6
+  - scipy=1.16.3
+  - pandas=2.3.3
+  - matplotlib=3.10.7
+  - pyyaml=6.0.3
+  - pytest=9.0.2
+  - pip
+  - pip:
+      - warp-lang==1.16.0
+      # nvmath-python provides the raw cuDSS bindings for the baseline
+      - nvmath-python[cu12]==0.7.0
+      # SOCU installed from the local checkout, branch feature/sequential
+      # (sequential algorithm + public forward/backward substitution):
+      #   pip install ~/Documents/gpu_code/socu
+      - socu
