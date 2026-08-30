@@ -1,63 +1,30 @@
-"""GPU one-level scenario-tree Cholesky solver.
+"""Two-level permuted structured Cholesky solver for one-level
+scenario-tree SPD systems.
 
-This package solves symmetric positive definite (SPD) linear systems with
-one-level scenario-tree structure: ``B`` independent block-tridiagonal
-branches (``T`` stage blocks of size ``n_b`` each) coupled to a shared
-separator of dimension ``n_y``.  The structured GPU solver factors all
-branch chains in parallel with the SOCU batched block-tridiagonal
-Cholesky, forms the dense separator Schur complement on the GPU, and
-never assembles the global sparse matrix.
+Public API::
 
-Stable public API (everything else is submodule-level)::
-
-    from src import (
-        TreeShape, TreeMatrix, TreeVector,
-        TreeSolver, PreparedSolve,
-    )
+    from src import TreeShape, TreeMatrix, TreeVector, Solver
 
 Typical usage::
 
-    solver = TreeSolver(matrix.shape, device="cuda:0")
-    solver.stage_matrix(matrix)
-    solver.factorize(check=True)
-    solution = solver.solve(rhs)
+    solver = Solver(matrix.shape, device="cuda:0")
+    solver.update(matrix)
+    solver.factorize()
+    x = solver.solve(rhs, out=x_workspace)
 
-``TreeSolver``/``PreparedSolve`` are imported lazily so that CPU-only
-work (validation, CPU references) does not initialize Warp.  Random
-problem generation is benchmark/test support and lives in
+``Solver`` is imported lazily so that CPU-only work (references, hosts
+without CUDA) does not initialize Warp.  Problem generation lives in
 :mod:`benchmarks.problems`; comparison solvers (cuDSS, CPU references)
-live in the top-level :mod:`baselines` package.
+in :mod:`baselines`.
 """
 
-from src.problem import (
-    TreeMatrix,
-    TreeShape,
-    TreeVector,
-    tree_vector_from_arrays,
-)
+from src.problem import TreeMatrix, TreeShape, TreeVector
 
-__all__ = [
-    "TreeShape",
-    "TreeMatrix",
-    "TreeVector",
-    "tree_vector_from_arrays",
-    "TreeSolver",
-    "PreparedSolve",
-    "SolverStats",
-]
-
-__version__ = "0.3.0"
-
-_LAZY = {
-    "TreeSolver": ("src.solver", "TreeSolver"),
-    "PreparedSolve": ("src.solver", "PreparedSolve"),
-    "SolverStats": ("src.solver", "SolverStats"),
-}
+__all__ = ["TreeShape", "TreeMatrix", "TreeVector", "Solver", "TreeSolver"]
 
 
 def __getattr__(name):
-    if name in _LAZY:
-        import importlib
-        module, attr = _LAZY[name]
-        return getattr(importlib.import_module(module), attr)
+    if name in ("Solver", "TreeSolver"):
+        from src.solver import Solver
+        return Solver
     raise AttributeError(f"module 'src' has no attribute {name!r}")

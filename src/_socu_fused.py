@@ -1,7 +1,7 @@
 """Narrow SOCU API patch: partial-solve launch builders.
 
 UPSTREAM STATUS.  The forward-only and backward-only solve builders were
-adopted upstream (socu commit 2ff9dc0, branch feature/sequential) as
+adopted upstream (socu commit 2ff9dc0, tail feature/sequential) as
 ``create_forward_substitution_launch`` / ``create_backward_substitution_launch``;
 this module re-exports them under the names used throughout this project.
 The fused factor-plus-forward builder below is still local-only and is
