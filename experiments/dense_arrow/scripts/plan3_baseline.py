@@ -64,7 +64,7 @@ def _fingerprint(problem, device):
     """Solve once with the tree solver and return solution digest data
     (fixed inputs, so the digest is comparable across implementations up
     to FP tolerance; store norms plus a low-precision hash)."""
-    from src.general_arrow.solver import Solver
+    from src.dense_arrow.solver import Solver
     solver = Solver(problem.spec.shape, device=device)
     solver.update(problem.matrix)
     solver.factorize()
@@ -87,8 +87,8 @@ def main():
 
     import warp as wp
     wp.init()
-    from experiments.general_arrow.benchmarks.problems import ProblemSpec, generate_problem
-    from experiments.general_arrow.benchmarks.runners import run_tree_method, run_cudss_method
+    from experiments.dense_arrow.benchmarks.problems import ProblemSpec, generate_problem
+    from experiments.dense_arrow.benchmarks.runners import run_tree_method, run_cudss_method
 
     out_dir = Path(args.output)
     out_dir.mkdir(parents=True, exist_ok=True)

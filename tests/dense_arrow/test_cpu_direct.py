@@ -6,8 +6,8 @@ import pytest
 
 from baselines import cpu_direct
 from baselines import reference as validation
-from experiments.general_arrow.benchmarks.problems import ProblemSpec, generate_problem
-from src.general_arrow.problem import TreeVector
+from experiments.dense_arrow.benchmarks.problems import ProblemSpec, generate_problem
+from src.dense_arrow.problem import TreeVector
 
 SMALL = ProblemSpec(num_tails=3, horizon=5, block_size=4,
                     root_dim=6, num_rhs=2, seed=7)
@@ -48,7 +48,7 @@ def test_direct_solvers_single_vector_rhs(make):
 
 
 def test_runner_records_have_benchmark_contract():
-    from experiments.general_arrow.benchmarks.runners import RUNNERS
+    from experiments.dense_arrow.benchmarks.runners import RUNNERS
     p = generate_problem(SMALL)
     rules = {"warmups": 1, "min_reps": 3, "slow_reps": 2,
              "min_seconds": 0.0, "max_reps": 5}

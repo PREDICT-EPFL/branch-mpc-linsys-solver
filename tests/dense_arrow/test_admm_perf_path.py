@@ -8,7 +8,7 @@ import pytest
 
 from admm import Settings, Solver
 from baselines.admm_numpy import solve_qp_reference
-from experiments.general_arrow.benchmarks.problems import generate_scenario_qp
+from experiments.dense_arrow.benchmarks.problems import generate_scenario_qp
 
 wp = pytest.importorskip("warp")
 pytestmark = pytest.mark.gpu

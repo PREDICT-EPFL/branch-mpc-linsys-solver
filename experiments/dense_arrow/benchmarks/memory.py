@@ -2,7 +2,7 @@
 allocation so oversized cases are skipped with an explicit record instead
 of crashing the run (or the machine)."""
 
-from experiments.general_arrow.benchmarks.problems import ProblemSpec
+from experiments.dense_arrow.benchmarks.problems import ProblemSpec
 
 
 def free_device_bytes(device="cuda:0") -> int:

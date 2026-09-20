@@ -9,7 +9,7 @@ from admm.problem import (
     analyze_tree_structure,
     build_plan,
 )
-from experiments.general_arrow.benchmarks.problems import generate_scenario_qp
+from experiments.dense_arrow.benchmarks.problems import generate_scenario_qp
 
 
 def test_scenario_qp_recognized_with_expected_dimensions():

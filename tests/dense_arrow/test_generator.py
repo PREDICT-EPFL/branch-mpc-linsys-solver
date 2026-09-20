@@ -3,9 +3,9 @@
 import numpy as np
 import pytest
 
-from experiments.general_arrow.benchmarks.problems import ProblemSpec, generate_problem
-from src.general_arrow.problem import TreeVector
-from src.general_arrow.problem import structural_matvec
+from experiments.dense_arrow.benchmarks.problems import ProblemSpec, generate_problem
+from src.dense_arrow.problem import TreeVector
+from src.dense_arrow.problem import structural_matvec
 
 SMALL = ProblemSpec(num_tails=3, horizon=5, block_size=4,
                     root_dim=6, num_rhs=2, seed=7)

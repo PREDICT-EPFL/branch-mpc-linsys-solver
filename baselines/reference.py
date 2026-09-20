@@ -9,7 +9,7 @@ project -- sparse assembly for the cuDSS baseline lives on
 
 import numpy as np
 
-from src.general_arrow.problem import structural_matvec
+from src.dense_arrow.problem import structural_matvec
 
 
 # --------------------------------------------------------------------------
@@ -171,7 +171,7 @@ def compute_metrics(problem, x_tail, x_root, a_norm=None):
 
     w_true = problem.exact_solution.tail
     y_true = problem.exact_solution.root
-    from src.general_arrow.problem import TreeVector
+    from src.dense_arrow.problem import TreeVector
     shape = matrix.shape
     err = TreeVector(shape, xt - w_true,
                      (xr - y_true).reshape(y_true.shape)).flat()

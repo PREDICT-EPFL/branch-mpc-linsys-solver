@@ -2,9 +2,9 @@
 
 import pytest
 
-from experiments.general_arrow.benchmarks.problems import ProblemSpec, generate_problem
+from experiments.dense_arrow.benchmarks.problems import ProblemSpec, generate_problem
 from baselines import reference as validation
-from src.general_arrow.problem import TreeVector
+from src.dense_arrow.problem import TreeVector
 
 
 def _lower_and_rhs(problem):

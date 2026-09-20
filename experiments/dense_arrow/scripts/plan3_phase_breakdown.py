@@ -20,11 +20,11 @@ def main():
     import warp as wp
     wp.init()
     import numpy as np
-    from experiments.general_arrow.benchmarks.problems import ProblemSpec, generate_problem
-    from experiments.general_arrow.benchmarks.timing import PhaseTimer
-    from src.general_arrow.problem import TreeVector
-    from src.general_arrow.solver import Solver
-    from src.general_arrow._utils import wp_dtype
+    from experiments.dense_arrow.benchmarks.problems import ProblemSpec, generate_problem
+    from experiments.dense_arrow.benchmarks.timing import PhaseTimer
+    from src.dense_arrow.problem import TreeVector
+    from src.dense_arrow.solver import Solver
+    from src.dense_arrow._utils import wp_dtype
 
     out = {}
     for B, T, n_b, n_r, nrhs in POINTS:

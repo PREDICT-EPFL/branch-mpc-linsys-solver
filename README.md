@@ -24,7 +24,7 @@ warm factorization and solve pipelines.
 ## Layout
 
     src/                       the two solver packages
-      general_arrow/           general block-arrow solver: every stage of
+      dense_arrow/           general block-arrow solver: every stage of
                                a tail may couple to the shared root
         problem.py             TreeShape / TreeMatrix / TreeVector
         solver.py              Solver (update/factorize/solve, CUDA graphs)
@@ -39,7 +39,7 @@ warm factorization and solve pipelines.
                                CUDA graphs, phase timing)
         kernels/               connector-path, endpoint and root kernels
         _reuse.py              the single place that imports shared
-                               primitives from general_arrow (one-way)
+                               primitives from dense_arrow (one-way)
         concept/               sparsity-pattern figures explaining the
                                ordering (drawing programs, not timings)
     experiments/               runnable experiments and their outputs;
@@ -48,7 +48,7 @@ warm factorization and solve pipelines.
                                benchmark (the paper's application), its
                                results/ and figures/
       endpoint_tree/           figures/ written by endpoint_tree/concept
-      general_arrow/           benchmark engine, campaign scripts and
+      dense_arrow/           benchmark engine, campaign scripts and
                                outputs for the general block-arrow solver
         benchmarks/, scripts/, results/, plots/
     admm/                      sparse-QP ADMM solver (OSQP-style API;
@@ -57,7 +57,7 @@ warm factorization and solve pipelines.
                                experiment: cuDSS, CHOLMOD, PARDISO,
                                QDLDL, SciPy references
     paper_draft/               ACC paper source (main.tex)
-    tests/                     pytest suites: general_arrow/ and
+    tests/                     pytest suites: dense_arrow/ and
                                endpoint_tree/ (CPU tests run without a GPU)
     plans/, doc/               plan documents, reviews, math and API notes
     RiskAverseTrajOpt/         vendored risk-averse trajectory-optimization

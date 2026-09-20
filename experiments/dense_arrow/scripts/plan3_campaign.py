@@ -123,10 +123,10 @@ def run_point(campaign, point, seed, device="cuda:0"):
     import warp as wp
     from baselines import cudss as cudss_mod
     from baselines import reference
-    from experiments.general_arrow.benchmarks.problems import ProblemSpec, generate_problem
-    from src.general_arrow._utils import wp_dtype
-    from src.general_arrow.problem import TreeVector
-    from src.general_arrow.solver import Solver
+    from experiments.dense_arrow.benchmarks.problems import ProblemSpec, generate_problem
+    from src.dense_arrow._utils import wp_dtype
+    from src.dense_arrow.problem import TreeVector
+    from src.dense_arrow.solver import Solver
 
     spec = ProblemSpec(num_tails=point["B"], horizon=point["T"],
                        block_size=point["n_b"], root_dim=point["n_r"],
@@ -242,7 +242,7 @@ def main():
 
     import warp as wp
     wp.init()
-    from experiments.general_arrow.benchmarks import metadata
+    from experiments.dense_arrow.benchmarks import metadata
     md = metadata.collect_metadata(args.device)
 
     if args.smoke:

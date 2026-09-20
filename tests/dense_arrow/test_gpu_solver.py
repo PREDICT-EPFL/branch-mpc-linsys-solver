@@ -6,7 +6,7 @@ All tests are marked ``gpu`` and skip automatically without a CUDA device.
 import numpy as np
 import pytest
 
-from experiments.general_arrow.benchmarks.problems import ProblemSpec, generate_problem
+from experiments.dense_arrow.benchmarks.problems import ProblemSpec, generate_problem
 from baselines import reference as validation
 
 wp = pytest.importorskip("warp")
@@ -19,7 +19,7 @@ SMALL = ProblemSpec(num_tails=3, horizon=5, block_size=16,
 
 
 def _solve_gpu(spec, num_rhs=None, precision=None):
-    from src.general_arrow.solver import Solver
+    from src.dense_arrow.solver import Solver
     spec_d = spec.to_dict()
     if num_rhs is not None:
         spec_d["num_rhs"] = num_rhs
@@ -38,7 +38,7 @@ def _solve_gpu(spec, num_rhs=None, precision=None):
 def test_socu_batched_factor_solve_matches_numpy():
     """Upstream SOCU batched multi-RHS solve against the NumPy chain solve
     (plan 6.1 integration test, B > 1 and multiple RHS)."""
-    from src.general_arrow.socu import TailEngine as SocuTailEngine
+    from src.dense_arrow.socu import TailEngine as SocuTailEngine
     spec = ProblemSpec(num_tails=4, horizon=6, block_size=16,
                        root_dim=4, seed=3)
     p = generate_problem(spec)
@@ -103,7 +103,7 @@ def test_repeated_factorization_stable():
     not run-to-run bitwise deterministic under concurrent GPU load
     (upstream FMA-order caveat), so compare at a tight scale-aware
     tolerance rather than bitwise."""
-    from src.general_arrow.solver import Solver
+    from src.dense_arrow.solver import Solver
     problem = generate_problem(SMALL)
     solver = Solver(problem.shape)
     solver.update(problem.matrix)
@@ -146,8 +146,8 @@ def test_large_root_paths():
 def test_unaligned_large_root_rejected():
     """Root dimensions of at least TILE_M must be SOCU-aligned (there is
     no third fallback path)."""
-    from src.general_arrow.problem import TreeShape
-    from src.general_arrow.solver import Solver
+    from src.dense_arrow.problem import TreeShape
+    from src.dense_arrow.solver import Solver
     with pytest.raises(ValueError, match="aligned"):
         Solver(TreeShape(2, 4, 16, 41, "float64"))
 
@@ -178,8 +178,8 @@ def test_root_update_reproducible():
 def test_bound_solve_no_warm_allocations():
     """Warm factorize/solve with bound device buffers must not grow the
     Warp allocator."""
-    from src.general_arrow.problem import TreeVector
-    from src.general_arrow.solver import Solver
+    from src.dense_arrow.problem import TreeVector
+    from src.dense_arrow.solver import Solver
     problem = generate_problem(SMALL)
     solver = Solver(problem.shape)
     solver.update(problem.matrix)
@@ -241,8 +241,8 @@ def test_non_spd_produces_nan():
     """Non-SPD input breaks the Cholesky factor; the solution carries
     NaNs (there is no default-path pivot scan -- validation is the
     caller's choice, outside the warm path)."""
-    from src.general_arrow.problem import TreeMatrix
-    from src.general_arrow.solver import Solver
+    from src.dense_arrow.problem import TreeMatrix
+    from src.dense_arrow.solver import Solver
     problem = generate_problem(SMALL)
     D = problem.matrix.D.copy()
     D[0, 0] -= 100.0 * np.eye(16)  # break positive definiteness

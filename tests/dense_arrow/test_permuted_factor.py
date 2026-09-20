@@ -11,7 +11,7 @@ residuals.
 import numpy as np
 import pytest
 
-from tests.general_arrow.permuted_factor_reference import (
+from tests.dense_arrow.permuted_factor_reference import (
     TailPermutation,
     assemble_dense_system,
     extract_tail_factor_dense,
@@ -37,7 +37,7 @@ def _factor(engine):
 
 
 def _problem(B=3, T=8, n_b=8, n_r=4, seed=0, precision="float64"):
-    from experiments.general_arrow.benchmarks.problems import ProblemSpec, generate_problem
+    from experiments.dense_arrow.benchmarks.problems import ProblemSpec, generate_problem
     spec = ProblemSpec(num_tails=B, horizon=T, block_size=n_b,
                        root_dim=n_r, num_rhs=1, precision=precision,
                        seed=seed)
@@ -99,7 +99,7 @@ def test_socu_storage_reconstructs_permuted_tail_factor(T):
     """SOCU's in-place factor storage holds exactly the permuted
     Cholesky factor blocks of each tail: dense reconstruction equals
     chol(Pi K Pi^T)."""
-    from src.general_arrow.socu import TailEngine as SocuTailEngine
+    from src.dense_arrow.socu import TailEngine as SocuTailEngine
     B, n_b = 3, 8
     problem = _problem(B=B, T=T, n_b=n_b, n_r=2, seed=2)
     D = np.asarray(problem.matrix.D, dtype=np.float64)
@@ -133,7 +133,7 @@ def test_full_factor_invariant_via_gpu_tails():
     from SOCU storage plus CPU-computed M_i and L_R, verify
     Pi Phi Pi^T = L_hat L_hat^T."""
     import scipy.linalg as sla
-    from src.general_arrow.socu import TailEngine as SocuTailEngine
+    from src.dense_arrow.socu import TailEngine as SocuTailEngine
     B, T, n_b, n_r = 2, 8, 8, 3
     problem = _problem(B=B, T=T, n_b=n_b, n_r=n_r, seed=3)
     matrix = problem.matrix
@@ -180,7 +180,7 @@ def test_solver_factor_blocks_match_reference(n_r):
     reconstructs the root update, and the complete structured factor
     reconstructs Pi Phi Pi^T."""
     import scipy.linalg as sla
-    from src.general_arrow.solver import Solver
+    from src.dense_arrow.solver import Solver
     B, T, n_b = 3, 8, 8
     problem = _problem(B=B, T=T, n_b=n_b, n_r=n_r, seed=4)
     matrix = problem.matrix
@@ -236,7 +236,7 @@ def test_solver_factor_blocks_match_reference(n_r):
 
 @pytest.mark.gpu
 def test_lifecycle_state_machine():
-    from src.general_arrow.solver import Solver
+    from src.dense_arrow.solver import Solver
     problem = _problem(B=2, T=4, n_b=8, n_r=2, seed=5)
     solver = Solver(problem.matrix.shape)
     # factorize before update fails before device work

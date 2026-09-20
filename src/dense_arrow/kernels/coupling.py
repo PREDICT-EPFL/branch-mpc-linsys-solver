@@ -33,7 +33,7 @@ from functools import lru_cache
 
 import warp as wp
 
-from src.general_arrow.kernels import TILE_M, make_module
+from src.dense_arrow.kernels import TILE_M, make_module
 
 #: Rows per chunk of the chunked root-update kernels (compile-time constant).
 #: 32 measured best among the launchable sizes on RTX 5090; 64-row

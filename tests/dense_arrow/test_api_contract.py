@@ -4,9 +4,9 @@ and prepared-solve management (review-driven; no numerics here)."""
 import numpy as np
 import pytest
 
-from experiments.general_arrow.benchmarks.problems import ProblemSpec, generate_problem
-from src.general_arrow import TreeMatrix, TreeShape, TreeVector
-from src.general_arrow.problem import tree_vector_from_arrays
+from experiments.dense_arrow.benchmarks.problems import ProblemSpec, generate_problem
+from src.dense_arrow import TreeMatrix, TreeShape, TreeVector
+from src.dense_arrow.problem import tree_vector_from_arrays
 
 SMALL = ProblemSpec(num_tails=3, horizon=5, block_size=16,
                     root_dim=8, seed=7)
@@ -54,7 +54,7 @@ pytest.importorskip("warp")
 
 @pytest.mark.gpu
 def test_lifecycle_errors():
-    from src.general_arrow.solver import Solver
+    from src.dense_arrow.solver import Solver
     problem = generate_problem(SMALL)
     solver = Solver(problem.shape)
     with pytest.raises(RuntimeError, match="update"):
@@ -72,7 +72,7 @@ def test_lifecycle_errors():
 
 @pytest.mark.gpu
 def test_shape_mismatch_rejected_before_gpu_work():
-    from src.general_arrow.solver import Solver
+    from src.dense_arrow.solver import Solver
     problem = generate_problem(SMALL)
     other = generate_problem(ProblemSpec(num_tails=2, horizon=5,
                                          block_size=16, root_dim=8,
@@ -89,7 +89,7 @@ def test_shape_mismatch_rejected_before_gpu_work():
 @pytest.mark.gpu
 def test_solve_returns_owned_output():
     import warp as wp
-    from src.general_arrow.solver import Solver
+    from src.dense_arrow.solver import Solver
     problem = generate_problem(SMALL)
     solver = Solver(problem.shape)
     solver.update(problem.matrix)
@@ -107,7 +107,7 @@ def test_bound_solve_binding():
     """Device rhs/out pointers bind into the solve graph; the binding is
     reused across calls and rebuilt when nrhs or pointers change."""
     import warp as wp
-    from src.general_arrow.solver import Solver
+    from src.dense_arrow.solver import Solver
     problem = generate_problem(SMALL)
     solver = Solver(problem.shape)
     solver.update(problem.matrix)
@@ -181,7 +181,7 @@ def test_matvec_method_and_alias_safety():
 
 def test_to_csr_lower_contract():
     import scipy.sparse as sp
-    from src.general_arrow.problem import TreeVector
+    from src.dense_arrow.problem import TreeVector
     p = generate_problem(SMALL)
     m = p.matrix
     lower = m.to_csr_lower()

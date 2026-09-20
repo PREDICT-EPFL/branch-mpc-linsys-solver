@@ -12,7 +12,7 @@ import hashlib
 import json
 from itertools import product
 
-from experiments.general_arrow.benchmarks.problems import ProblemSpec
+from experiments.dense_arrow.benchmarks.problems import ProblemSpec
 
 _SPEC_KEYS = {f.name for f in dataclasses.fields(ProblemSpec)}
 

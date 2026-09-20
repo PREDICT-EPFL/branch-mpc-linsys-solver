@@ -31,8 +31,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import numpy as np  # noqa: E402
 
 from admm import Settings, Solver  # noqa: E402
-from experiments.general_arrow.benchmarks.admm import run_case, _sync  # noqa: E402
-from experiments.general_arrow.benchmarks.problems import generate_scenario_qp  # noqa: E402
+from experiments.dense_arrow.benchmarks.admm import run_case, _sync  # noqa: E402
+from experiments.dense_arrow.benchmarks.problems import generate_scenario_qp  # noqa: E402
 
 HEADLINE = dict(num_tails=41, num_stages=64, nx=8, nu=2)
 

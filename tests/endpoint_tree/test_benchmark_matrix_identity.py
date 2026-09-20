@@ -33,7 +33,7 @@ def test_both_solvers_agree_on_the_identical_matrix():
     s.factorize()
     x = s.solve(p.rhs)
     from src.endpoint_tree._reuse import TreeVector
-    from src.general_arrow.solver import Solver as GeneralSolver
+    from src.dense_arrow.solver import Solver as GeneralSolver
     general = p.matrix.to_general_tree_matrix()
     gs = GeneralSolver(general.shape)
     gs.update(general)

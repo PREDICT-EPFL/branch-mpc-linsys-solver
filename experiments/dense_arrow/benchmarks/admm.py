@@ -36,7 +36,7 @@ import numpy as np  # noqa: E402
 
 from admm import Settings, Solver  # noqa: E402
 from admm.problem import analyze_tree_structure, build_plan  # noqa: E402
-from experiments.general_arrow.benchmarks.problems import generate_scenario_qp  # noqa: E402
+from experiments.dense_arrow.benchmarks.problems import generate_scenario_qp  # noqa: E402
 
 
 def _sync():

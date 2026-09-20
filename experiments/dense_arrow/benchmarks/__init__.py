@@ -21,22 +21,22 @@ from pathlib import Path
 
 import yaml
 
-from experiments.general_arrow.benchmarks.config import case_id, expand_cases, spec_from_params
-from experiments.general_arrow.benchmarks.memory import (
+from experiments.dense_arrow.benchmarks.config import case_id, expand_cases, spec_from_params
+from experiments.dense_arrow.benchmarks.memory import (
     available_host_bytes,
     estimate_host_bytes,
     estimate_method_bytes,
     free_device_bytes,
 )
-from experiments.general_arrow.benchmarks.metadata import (
+from experiments.dense_arrow.benchmarks.metadata import (
     collect_metadata,
     gpu_snapshot,
     provenance_block,
     source_hash,
 )
-from experiments.general_arrow.benchmarks.runners import RUNNERS
-from experiments.general_arrow.benchmarks.storage import atomic_write_json
-from experiments.general_arrow.benchmarks.problems import generate_problem
+from experiments.dense_arrow.benchmarks.runners import RUNNERS
+from experiments.dense_arrow.benchmarks.storage import atomic_write_json
+from experiments.dense_arrow.benchmarks.problems import generate_problem
 
 __all__ = [
     "run_config", "expand_cases", "case_id", "spec_from_params",

@@ -20,7 +20,7 @@ from dataclasses import asdict, dataclass, field
 
 import numpy as np
 
-from src.general_arrow.problem import (
+from src.dense_arrow.problem import (
     TreeMatrix,
     TreeShape,
     TreeVector,

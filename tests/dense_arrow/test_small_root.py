@@ -4,15 +4,15 @@ reduction, and correction for root dimensions below TILE_M."""
 import numpy as np
 import pytest
 
-from src.general_arrow.kernels import TILE_M
-from tests.general_arrow.permuted_factor_reference import assemble_dense_system
+from src.dense_arrow.kernels import TILE_M
+from tests.dense_arrow.permuted_factor_reference import assemble_dense_system
 
 wp = pytest.importorskip("warp")
 pytestmark = pytest.mark.gpu
 
 
 def _problem(B, T, n_b, n_r, nrhs=1, seed=0, precision="float64"):
-    from experiments.general_arrow.benchmarks.problems import ProblemSpec, generate_problem
+    from experiments.dense_arrow.benchmarks.problems import ProblemSpec, generate_problem
     spec = ProblemSpec(num_tails=B, horizon=T, block_size=n_b,
                        root_dim=n_r, num_rhs=nrhs,
                        precision=precision, seed=seed)
@@ -33,7 +33,7 @@ def _dense_solve(problem):
 @pytest.mark.parametrize("n_r", [1, 2, 4, 8, 15])
 @pytest.mark.parametrize("precision", ["float64", "float32"])
 def test_small_root_path_matches_dense(n_r, precision):
-    from src.general_arrow.solver import Solver
+    from src.dense_arrow.solver import Solver
     problem = _problem(B=5, T=13, n_b=8, n_r=n_r, seed=n_r,
                        precision=precision)
     solver = Solver(problem.matrix.shape)
@@ -50,7 +50,7 @@ def test_small_root_path_matches_dense(n_r, precision):
 
 @pytest.mark.parametrize("nrhs", [1, 3, 16])
 def test_small_root_multi_rhs(nrhs):
-    from src.general_arrow.solver import Solver
+    from src.dense_arrow.solver import Solver
     problem = _problem(B=3, T=8, n_b=8, n_r=2, nrhs=nrhs, seed=7)
     solver = Solver(problem.matrix.shape)
     solver.update(problem.matrix)
@@ -64,8 +64,8 @@ def test_small_root_multi_rhs(nrhs):
 def test_small_and_tiled_paths_agree(monkeypatch):
     """The scalar small-root path and the tiled path compute the same
     factorization and solution (FP64 tolerance)."""
-    import src.general_arrow.kernels.coupling as coupling
-    from src.general_arrow.solver import Solver
+    import src.dense_arrow.kernels.coupling as coupling
+    from src.dense_arrow.solver import Solver
     problem = _problem(B=4, T=16, n_b=8, n_r=8, seed=9)
     results = {}
     for label, enabled in (("small", True), ("tiled", False)):
@@ -89,7 +89,7 @@ def test_small_root_deterministic_repeat():
     scale.  (SOCU's fused forward substitution uses atomic neighbor
     updates, so whole-solver bitwise determinism is not claimed --
     plan 9.4.)"""
-    from src.general_arrow.solver import Solver
+    from src.dense_arrow.solver import Solver
     problem = _problem(B=7, T=12, n_b=8, n_r=2, seed=11)
     solver = Solver(problem.matrix.shape)
     runs = []
@@ -107,8 +107,8 @@ def test_small_root_deterministic_repeat():
 
 def test_dispatch_boundary():
     """n_r >= TILE_M uses the tiled path; below uses the scalar path."""
-    from src.general_arrow.solver import Solver
-    from src.general_arrow.problem import TreeShape
+    from src.dense_arrow.solver import Solver
+    from src.dense_arrow.problem import TreeShape
     hi = TreeShape(2, 4, 8, TILE_M, "float64")
     lo = TreeShape(2, 4, 8, TILE_M - 1, "float64")
     assert not Solver(hi)._small_root

@@ -10,7 +10,7 @@ from functools import lru_cache
 
 import warp as wp
 
-from src.general_arrow.kernels import make_module
+from src.dense_arrow.kernels import make_module
 
 
 @lru_cache(maxsize=None)

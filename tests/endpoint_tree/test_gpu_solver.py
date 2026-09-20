@@ -64,7 +64,7 @@ def test_gpu_matches_general_solver_on_converted_matrix():
     p = generate_endpoint_problem(shape, seed=23)
     _, x = _solve_gpu(p)
     from src.endpoint_tree._reuse import TreeVector
-    from src.general_arrow.solver import Solver as GeneralSolver
+    from src.dense_arrow.solver import Solver as GeneralSolver
     general = p.matrix.to_general_tree_matrix()
     gs = GeneralSolver(general.shape)
     gs.update(general)

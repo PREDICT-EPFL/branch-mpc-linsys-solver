@@ -32,9 +32,9 @@ from socu.block_tridiag_solver import (
     create_cholesky_solve_launch,
 )
 
-from src.general_arrow._utils import copy_into, require_cuda_device, wp_dtype
-from src.general_arrow.kernels import BLOCK_DIM, num_root_tiles
-from src.general_arrow.kernels.coupling import (
+from src.dense_arrow._utils import copy_into, require_cuda_device, wp_dtype
+from src.dense_arrow.kernels import BLOCK_DIM, num_root_tiles
+from src.dense_arrow.kernels.coupling import (
     ROOT_RHS_VECTOR_PARTITIONS,
     SMALL_ROOT_CHUNKS,
     create_atomic_root_rhs_kernel,
@@ -53,12 +53,12 @@ from src.general_arrow.kernels.coupling import (
     small_root_segment,
     use_small_root,
 )
-from src.general_arrow.kernels.root import (
+from src.dense_arrow.kernels.root import (
     create_root_factor_kernel,
     create_root_solve_kernel,
 )
-from src.general_arrow.problem import TreeMatrix, TreeShape, TreeVector
-from src.general_arrow.socu import TailEngine, is_block_size_aligned
+from src.dense_arrow.problem import TreeMatrix, TreeShape, TreeVector
+from src.dense_arrow.socu import TailEngine, is_block_size_aligned
 
 
 def _device_ptr(array):

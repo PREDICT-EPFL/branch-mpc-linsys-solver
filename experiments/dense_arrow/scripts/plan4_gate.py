@@ -60,9 +60,9 @@ def _count_launches(fn):
 
 def measure_point(B, T, n_b, n_r, nrhs, device="cuda:0"):
     import warp as wp
-    from experiments.general_arrow.benchmarks.problems import ProblemSpec, generate_problem
-    from experiments.general_arrow.benchmarks.runners import _PairedTimer, _paired_loop
-    from src.general_arrow.solver import Solver
+    from experiments.dense_arrow.benchmarks.problems import ProblemSpec, generate_problem
+    from experiments.dense_arrow.benchmarks.runners import _PairedTimer, _paired_loop
+    from src.dense_arrow.solver import Solver
 
     spec = ProblemSpec(num_tails=B, horizon=T, block_size=n_b,
                        root_dim=n_r, num_rhs=nrhs,
@@ -78,7 +78,7 @@ def measure_point(B, T, n_b, n_r, nrhs, device="cuda:0"):
     solver.factorize()
     dt = wp.float64
     rb, rr = prob.rhs.tail, prob.rhs.root
-    from src.general_arrow.problem import TreeVector
+    from src.dense_arrow.problem import TreeVector
     rhs = TreeVector(spec.shape,
                      wp.array(np.asarray(rb), dtype=dt, device=device),
                      wp.array(np.asarray(rr), dtype=dt, device=device))

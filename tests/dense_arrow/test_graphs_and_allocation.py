@@ -11,7 +11,7 @@ DEV = "cuda:0"
 
 
 def _problem(B=11, T=16, n_b=8, n_r=2, nrhs=1, seed=0):
-    from experiments.general_arrow.benchmarks.problems import ProblemSpec, generate_problem
+    from experiments.dense_arrow.benchmarks.problems import ProblemSpec, generate_problem
     spec = ProblemSpec(num_tails=B, horizon=T, block_size=n_b,
                        root_dim=n_r, num_rhs=nrhs,
                        precision="float64", seed=seed)
@@ -19,7 +19,7 @@ def _problem(B=11, T=16, n_b=8, n_r=2, nrhs=1, seed=0):
 
 
 def _dev_vec(shape, tail, root):
-    from src.general_arrow.problem import TreeVector
+    from src.dense_arrow.problem import TreeVector
     return TreeVector(shape,
                       wp.array(np.ascontiguousarray(tail),
                                dtype=wp.float64, device=DEV),
@@ -36,7 +36,7 @@ def _refresh(rhs, problem):
 
 
 def _warm_solver(problem):
-    from src.general_arrow.solver import Solver
+    from src.dense_arrow.solver import Solver
     shape = problem.matrix.shape
     solver = Solver(shape)
     solver.update(problem.matrix)
@@ -69,7 +69,7 @@ def test_warm_calls_allocate_zero_bytes():
 def test_graphs_survive_value_updates():
     """update() changes values in fixed buffers: captured graphs stay
     valid and produce the updated system's solution."""
-    from src.general_arrow.problem import TreeMatrix
+    from src.dense_arrow.problem import TreeMatrix
     problem = _problem(seed=1)
     solver, rhs, out = _warm_solver(problem)
     # scale the whole system: solution of (2 Phi) x = r is x/2
@@ -126,7 +126,7 @@ def test_single_refresh_per_factorization():
     """One update() followed by one factorize() performs exactly one
     pristine-to-factor refresh of each tail buffer (plan 4: staging must
     not duplicate the device copy that factorize() owns)."""
-    from src.general_arrow.solver import Solver
+    from src.dense_arrow.solver import Solver
     problem = _problem()
     solver = Solver(problem.matrix.shape)
 
@@ -202,7 +202,7 @@ def test_rebind_on_changed_rhs_root_pointer():
     _refresh(rhs, problem)
     sep2 = wp.array(np.ascontiguousarray(problem.rhs.root),
                     dtype=wp.float64, device=DEV)
-    from src.general_arrow.problem import TreeVector
+    from src.dense_arrow.problem import TreeVector
     rhs2 = TreeVector(shape, rhs.tail, sep2)
     solver.solve(rhs2, out=out)
     wp.synchronize_device(DEV)
@@ -216,7 +216,7 @@ def test_mixed_host_device_rhs_stages():
     """A mixed host/device RHS must not be classified zero-copy: it
     stages through internal buffers, leaves the caller arrays untouched,
     and still solves correctly."""
-    from src.general_arrow.problem import TreeVector
+    from src.dense_arrow.problem import TreeVector
     problem = _problem()
     solver, rhs, out = _warm_solver(problem)
     shape = problem.matrix.shape
@@ -237,10 +237,10 @@ def test_aliased_out_root_skips_store():
     """out.root may alias the RHS root buffer (the root solve already
     ran in place there); the graph then skips the store and the result
     is still correct."""
-    from src.general_arrow.problem import TreeVector
+    from src.dense_arrow.problem import TreeVector
     problem = _problem()
     shape = problem.matrix.shape
-    from src.general_arrow.solver import Solver
+    from src.dense_arrow.solver import Solver
     solver = Solver(shape)
     solver.update(problem.matrix)
     solver.factorize()
@@ -262,7 +262,7 @@ def test_convenience_path_preserves_device_rhs():
     consume the caller's arrays): the RHS survives and repeated calls
     return the same correct solution."""
     problem = _problem()
-    from src.general_arrow.solver import Solver
+    from src.dense_arrow.solver import Solver
     solver = Solver(problem.matrix.shape)
     solver.update(problem.matrix)
     solver.factorize()

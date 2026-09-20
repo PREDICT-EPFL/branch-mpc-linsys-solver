@@ -23,9 +23,9 @@ POINTS = [(11, 16, 8, 2, 1), (41, 64, 8, 2, 1), (81, 128, 8, 2, 1),
 
 def measure_point(B, T, n_b, n_r, nrhs, device="cuda:0"):
     import warp as wp
-    from experiments.general_arrow.benchmarks.problems import ProblemSpec, generate_problem
-    from experiments.general_arrow.benchmarks.runners import _PairedTimer, _paired_loop
-    from src.general_arrow.solver import TreeSolver as Solver
+    from experiments.dense_arrow.benchmarks.problems import ProblemSpec, generate_problem
+    from experiments.dense_arrow.benchmarks.runners import _PairedTimer, _paired_loop
+    from src.dense_arrow.solver import TreeSolver as Solver
 
     spec = ProblemSpec(num_tails=B, horizon=T, block_size=n_b,
                        root_dim=n_r, num_rhs=nrhs,
@@ -36,7 +36,7 @@ def measure_point(B, T, n_b, n_r, nrhs, device="cuda:0"):
     solver.factorize()
     rhs = prob.device_rhs(device) if hasattr(prob, "device_rhs") else None
     if rhs is None:
-        from src.general_arrow.problem import TreeVector
+        from src.dense_arrow.problem import TreeVector
         dt = wp.float64
         rhs = TreeVector(spec.shape,
                          wp.array(np.asarray(prob.rhs.tail), dtype=dt,

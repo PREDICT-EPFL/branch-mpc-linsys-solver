@@ -28,7 +28,7 @@ from socu.block_tridiag_solver import (
     optimal_problem_settings,
 )
 
-from src.general_arrow._utils import Launch, copy_into
+from src.dense_arrow._utils import Launch, copy_into
 
 
 def is_block_size_aligned(block_dim: int, dtype) -> bool:
@@ -100,7 +100,7 @@ class TailEngine:
     def build_factor_forward_launch(self, x) -> Launch:
         """Fused factorization + forward transform launch bound to
         ``x`` (the root-coupling buffer)."""
-        from src.general_arrow._socu_fused import (
+        from src.dense_arrow._socu_fused import (
             create_cholesky_factor_and_forward_solve_launch)
         return create_cholesky_factor_and_forward_solve_launch(
             self.diag_factor, self.offdiag_factor, x, dtype=self.dtype,

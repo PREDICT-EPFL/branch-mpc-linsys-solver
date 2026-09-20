@@ -18,8 +18,8 @@ import time
 import numpy as np
 
 from baselines import reference as validation
-from src.general_arrow.problem import TreeVector
-from experiments.general_arrow.benchmarks.timing import summarize
+from src.dense_arrow.problem import TreeVector
+from experiments.dense_arrow.benchmarks.timing import summarize
 
 #: Phase marks that are repeated-overhead, not solver work (reported
 #: separately as ``warm_overhead_ms``; included in the paired factor and
@@ -84,10 +84,10 @@ def run_tree_method(problem, method_def, rules, device):
     breakdowns use the solver's private stage timer hooks.
     """
     import warp as wp
-    from src.general_arrow.problem import TreeVector
-    from src.general_arrow.solver import Solver
-    from src.general_arrow._utils import wp_dtype
-    from experiments.general_arrow.benchmarks.timing import PhaseTimer
+    from src.dense_arrow.problem import TreeVector
+    from src.dense_arrow.solver import Solver
+    from src.dense_arrow._utils import wp_dtype
+    from experiments.dense_arrow.benchmarks.timing import PhaseTimer
 
     spec = problem.spec
     rec = {"status": "ok"}
@@ -177,7 +177,7 @@ def run_tree_method(problem, method_def, rules, device):
         - (rec["warm_factor"]["median"] + rec["warm_solve"]["median"]) / 1e3,
         0.0)
     import warp as wp
-    from experiments.general_arrow.benchmarks.memory import _estimate_solver_bytes
+    from experiments.dense_arrow.benchmarks.memory import _estimate_solver_bytes
     # actual mempool use after the warm loop (solver + problem buffers)
     rec["peak_device_bytes"] = int(
         wp.get_mempool_used_mem_current(device))

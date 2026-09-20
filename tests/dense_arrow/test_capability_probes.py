@@ -6,7 +6,7 @@ supported specializations numerically and fail loudly here instead."""
 import numpy as np
 import pytest
 
-from src.general_arrow.kernels import BLOCK_DIM, TILE_M, num_root_tiles
+from src.dense_arrow.kernels import BLOCK_DIM, TILE_M, num_root_tiles
 
 wp = pytest.importorskip("warp")
 pytestmark = pytest.mark.gpu
@@ -18,8 +18,8 @@ DEV = "cuda:0"
                                            (256, "float64"),
                                            (128, "float32")])
 def test_chunked_coupling_kernel_launches(n_r, precision):
-    from src.general_arrow._utils import wp_dtype
-    from src.general_arrow.kernels.coupling import (create_chunked_root_update_kernel,
+    from src.dense_arrow._utils import wp_dtype
+    from src.dense_arrow.kernels.coupling import (create_chunked_root_update_kernel,
                                       num_row_chunks)
     dt = wp_dtype(precision)
     T, n_b = 8, 16
@@ -39,7 +39,7 @@ def test_chunked_coupling_kernel_launches(n_r, precision):
 
 @pytest.mark.parametrize("n_r", [1, 8, 15, 64])
 def test_single_tile_root_factor_launches(n_r):
-    from src.general_arrow.kernels.root import create_root_factor_kernel
+    from src.dense_arrow.kernels.root import create_root_factor_kernel
     S = wp.array(4.0 * np.eye(n_r), dtype=wp.float64, device=DEV)
     wp.launch_tiled(create_root_factor_kernel(n_r, wp.float64), dim=[1],
                     inputs=[S], block_dim=BLOCK_DIM, device=DEV)
@@ -50,9 +50,9 @@ def test_single_tile_root_factor_launches(n_r):
 def test_big_block_end_to_end():
     """The largest supported tail block size solves correctly (a
     silently failed tile launch would corrupt the solution)."""
-    from experiments.general_arrow.benchmarks.problems import ProblemSpec, generate_problem
+    from experiments.dense_arrow.benchmarks.problems import ProblemSpec, generate_problem
     from baselines import reference
-    from src.general_arrow.solver import Solver
+    from src.dense_arrow.solver import Solver
     spec = ProblemSpec(num_tails=2, horizon=4, block_size=64,
                        root_dim=64, seed=0)
     problem = generate_problem(spec, estimate_condition=False)
@@ -73,9 +73,9 @@ def test_oversized_nrhs_raises_instead_of_zeros():
     verified empirically for both the SOCU substitution kernels and the
     project's chunked tile kernels; this test locks the loud-failure
     contract in."""
-    from experiments.general_arrow.benchmarks.problems import ProblemSpec, generate_problem
-    from src.general_arrow.problem import TreeVector
-    from src.general_arrow.solver import Solver
+    from experiments.dense_arrow.benchmarks.problems import ProblemSpec, generate_problem
+    from src.dense_arrow.problem import TreeVector
+    from src.dense_arrow.solver import Solver
     wp = pytest.importorskip("warp")
     spec = ProblemSpec(num_tails=2, horizon=4, block_size=16,
                        root_dim=16, num_rhs=1024, precision="float64",

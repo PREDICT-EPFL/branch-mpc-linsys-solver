@@ -5,7 +5,7 @@ import pytest
 import scipy.sparse as sp
 
 from admm.problem import build_plan, _validate_vectors
-from experiments.general_arrow.benchmarks.problems import generate_scenario_qp
+from experiments.dense_arrow.benchmarks.problems import generate_scenario_qp
 
 
 def _qp(n=10, m=14, seed=1):

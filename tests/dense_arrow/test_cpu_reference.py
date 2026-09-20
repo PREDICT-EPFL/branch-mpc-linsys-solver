@@ -3,7 +3,7 @@
 import numpy as np
 import pytest
 
-from experiments.general_arrow.benchmarks.problems import ProblemSpec, generate_problem
+from experiments.dense_arrow.benchmarks.problems import ProblemSpec, generate_problem
 from baselines import reference as validation
 from baselines import scipy_reference as ref
 
@@ -31,7 +31,7 @@ def test_structured_matches_dense_reference():
     """Cross-check the structured block-Cholesky reference against a
     dense LAPACK solve of the assembled system: an independent method,
     affordable because these problems are tiny."""
-    from src.general_arrow.problem import TreeVector
+    from src.dense_arrow.problem import TreeVector
     p = generate_problem(SMALL)
     xt_a, xr_a = ref.solve_structured_cpu(p)
     L = p.matrix.to_csr_lower(dtype=np.float64).toarray()
