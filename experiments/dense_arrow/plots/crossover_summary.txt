@@ -1,0 +1,9 @@
+Crossover summary (first point where tree beats cuDSS):
+  campaign B (B), factor: tree faster from B=1
+  campaign B (B), solve: tree faster from B=1
+  campaign C (T), factor: tree faster from T=8
+  campaign C (T), solve: tree faster from T=8
+  campaign D (n_b), factor: tree faster from n_b=4
+  campaign D (n_b), solve: tree faster from n_b=4
+  campaign E (n_r), factor: tree faster from n_r=1
+  campaign E (n_r), solve: tree faster from n_r=1

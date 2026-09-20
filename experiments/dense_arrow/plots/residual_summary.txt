@@ -1,0 +1,7 @@
+precision  backend
+float32    cudss      1.014368e-07
+           tree       1.463739e-07
+float64    cudss      2.743182e-16
+           tree       4.435077e-16
+non-ok rows: 0
+worst tree/cuDSS disagreement: 1.488e-05

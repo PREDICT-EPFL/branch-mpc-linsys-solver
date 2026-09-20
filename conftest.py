@@ -23,6 +23,7 @@ def _cuda_available() -> bool:
 
 def pytest_configure(config):
     config.addinivalue_line("markers", "gpu: requires a CUDA device")
+    config.addinivalue_line("markers", "slow: long-running regression")
 
 
 def pytest_collection_modifyitems(config, items):

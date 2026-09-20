@@ -1,30 +1,16 @@
-"""Two-level permuted structured Cholesky solver for one-level
-scenario-tree SPD systems.
+"""Structured GPU direct solvers for root-coupled block-tridiagonal
+SPD systems.
 
-Public API::
+Two solver packages share the SOCU adapter and the dense root
+kernels:
 
-    from src import TreeShape, TreeMatrix, TreeVector, Solver
+- :mod:`src.general_arrow` -- the general block-arrow solver, in
+  which every stage of a tail may couple to the shared root.
+- :mod:`src.endpoint_tree` -- the endpoint-coupled solver, in which
+  only the root-facing block of each tail couples to the root.
 
-Typical usage::
-
-    solver = Solver(matrix.shape, device="cuda:0")
-    solver.update(matrix)
-    solver.factorize()
-    x = solver.solve(rhs, out=x_workspace)
-
-``Solver`` is imported lazily so that CPU-only work (references, hosts
-without CUDA) does not initialize Warp.  Problem generation lives in
-:mod:`benchmarks.problems`; comparison solvers (cuDSS, CPU references)
-in :mod:`baselines`.
+The dependency direction is one-way: ``endpoint_tree`` reuses
+selected primitives from ``general_arrow`` (see
+:mod:`src.endpoint_tree._reuse`); nothing in ``general_arrow`` may
+import ``endpoint_tree``.
 """
-
-from src.problem import TreeMatrix, TreeShape, TreeVector
-
-__all__ = ["TreeShape", "TreeMatrix", "TreeVector", "Solver", "TreeSolver"]
-
-
-def __getattr__(name):
-    if name in ("Solver", "TreeSolver"):
-        from src.solver import Solver
-        return Solver
-    raise AttributeError(f"module 'src' has no attribute {name!r}")

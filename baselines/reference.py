@@ -1,4 +1,4 @@
-"""Validation utilities: CPU structured solves, assembly, and error metrics.
+"""CPU reference solves, structured assembly, and error metrics.
 
 Everything here runs on the CPU in NumPy and exists to validate the GPU
 solvers and the generator; the timed structured solver never calls these
@@ -9,20 +9,20 @@ project -- sparse assembly for the cuDSS baseline lives on
 
 import numpy as np
 
-from src.problem import structural_matvec
+from src.general_arrow.problem import structural_matvec
 
 
 # --------------------------------------------------------------------------
-# CPU block-chain Cholesky (batched over branches, sequential over stages)
+# CPU block-chain Cholesky (batched over tails, sequential over stages)
 # --------------------------------------------------------------------------
 def chain_cholesky(D, E):
-    """Block-tridiagonal Cholesky ``K_i = L_i L_i^T`` for every branch.
+    """Block-tridiagonal Cholesky ``K_i = L_i L_i^T`` for every tail.
 
     Parameters are the ``(B, T, n_b, n_b)`` diagonal and
     ``(B, T-1, n_b, n_b)`` sub-diagonal blocks.  Returns
     ``(L_diag, L_sub)`` where ``L_diag`` holds lower-triangular Cholesky
     blocks and ``L_sub`` the sub-diagonal factor blocks, both batched over
-    branches.  Raises ``LinAlgError`` if any pivot block is not positive
+    tails.  Raises ``LinAlgError`` if any pivot block is not positive
     definite.
     """
     B, T, n_b, _ = D.shape
@@ -44,7 +44,7 @@ def chain_cholesky(D, E):
 
 def chain_forward(L_diag, L_sub, rhs):
     """Solve the block-bidiagonal system ``L u = rhs`` (forward
-    substitution) for every branch.  ``rhs`` has shape
+    substitution) for every tail.  ``rhs`` has shape
     ``(B, T, n_b, nrhs)``."""
     B, T, n_b, nrhs = rhs.shape
     u = np.empty_like(rhs)
@@ -56,7 +56,7 @@ def chain_forward(L_diag, L_sub, rhs):
 
 
 def chain_backward(L_diag, L_sub, u):
-    """Solve ``L^T x = u`` (backward substitution) for every branch."""
+    """Solve ``L^T x = u`` (backward substitution) for every tail."""
     B, T, n_b, nrhs = u.shape
     x = np.empty_like(u)
     x[:, T - 1] = np.linalg.solve(np.swapaxes(L_diag[:, T - 1], -1, -2),
@@ -68,20 +68,20 @@ def chain_backward(L_diag, L_sub, u):
 
 
 def chain_solve(L_diag, L_sub, rhs):
-    """Solve ``K_i x = rhs`` for every branch given the chain factors."""
+    """Solve ``K_i x = rhs`` for every tail given the chain factors."""
     return chain_backward(L_diag, L_sub, chain_forward(L_diag, L_sub, rhs))
 
 
-def structured_solve_cpu(D, E, C_T, R, r, q, return_schur=False):
-    """Reference CPU implementation of the structured Schur-complement
+def structured_solve_cpu(D, E, C_T, R, r, q, return_root_update=False):
+    """Reference CPU implementation of the structured block-Cholesky
     solve.
 
-    Implements exactly the algorithm of the GPU solver (branch Cholesky,
-    ``X = K^{-1} C^T`` columnwise, Schur complement ``S = R - sum C X``,
+    Implements exactly the algorithm of the GPU solver (tail Cholesky,
+    ``X = K^{-1} C^T`` columnwise, root update ``S = R - sum C X``,
     root solve, recovery) with plain NumPy.  Intended for validation and
     small cases.
 
-    Returns ``(w, y)`` and, with ``return_schur=True``, also the Schur
+    Returns ``(w, y)`` and, with ``return_root_update=True``, also the
     complement ``S``.
     """
     L_diag, L_sub = chain_cholesky(D, E)
@@ -93,7 +93,7 @@ def structured_solve_cpu(D, E, C_T, R, r, q, return_schur=False):
     Ls = np.linalg.cholesky(S)
     y = np.linalg.solve(Ls.T, np.linalg.solve(Ls, s))
     w = u - np.einsum("btim,mq->btiq", X, y)
-    if return_schur:
+    if return_root_update:
         return w, y, S
     return w, y
 
@@ -109,10 +109,10 @@ def estimate_two_norm(D, E, C_T, R, iters=30, seed=0):
     power iteration converges to the spectral norm from a random start.
     """
     B, T, n_b, _ = D.shape
-    n_y = R.shape[0]
+    n_r = R.shape[0]
     rng = np.random.default_rng(seed)
     xt = rng.standard_normal((B, T, n_b, 1))
-    xr = rng.standard_normal((n_y, 1))
+    xr = rng.standard_normal((n_r, 1))
     lam = 1.0
     for _ in range(iters):
         yt, yr = structural_matvec(D, E, C_T, R, xt, xr)
@@ -123,11 +123,11 @@ def estimate_two_norm(D, E, C_T, R, iters=30, seed=0):
     return lam
 
 
-def compute_metrics(problem, x_branch, x_separator, a_norm=None):
+def compute_metrics(problem, x_tail, x_root, a_norm=None):
     """Accuracy metrics of a candidate solution, computed in FP64.
 
     ``problem`` is a :class:`~src.problem.GeneratedProblem`;
-    ``x_branch``/``x_separator`` are the solution parts as arrays (host or
+    ``x_tail``/``x_root`` are the solution parts as arrays (host or
     anything :func:`numpy.asarray` accepts).  Returns a dict with
     ``scaled_residual``, ``rhs_relative_residual``, ``forward_error``,
     ``max_componentwise_backward_error``, and ``nan_or_inf`` (True if the
@@ -140,10 +140,10 @@ def compute_metrics(problem, x_branch, x_separator, a_norm=None):
     e64 = matrix.E.astype(np.float64)
     c64 = matrix.C_T.astype(np.float64)
     r64 = matrix.R.astype(np.float64)
-    rhs_b = problem.rhs.branch.astype(np.float64)
-    rhs_s = problem.rhs.separator.astype(np.float64)
-    xt = np.asarray(x_branch, dtype=np.float64).reshape(rhs_b.shape)
-    xr = np.asarray(x_separator, dtype=np.float64).reshape(rhs_s.shape)
+    rhs_b = problem.rhs.tail.astype(np.float64)
+    rhs_s = problem.rhs.root.astype(np.float64)
+    xt = np.asarray(x_tail, dtype=np.float64).reshape(rhs_b.shape)
+    xr = np.asarray(x_root, dtype=np.float64).reshape(rhs_s.shape)
 
     nan_or_inf = not (np.all(np.isfinite(xt)) and np.all(np.isfinite(xr)))
 
@@ -169,9 +169,9 @@ def compute_metrics(problem, x_branch, x_separator, a_norm=None):
         float(np.max(np.abs(res_r) / np.maximum(den_r, tiny))) if res_r.size else 0.0,
     )
 
-    w_true = problem.exact_solution.branch
-    y_true = problem.exact_solution.separator
-    from src.problem import TreeVector
+    w_true = problem.exact_solution.tail
+    y_true = problem.exact_solution.root
+    from src.general_arrow.problem import TreeVector
     shape = matrix.shape
     err = TreeVector(shape, xt - w_true,
                      (xr - y_true).reshape(y_true.shape)).flat()
