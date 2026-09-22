@@ -81,7 +81,7 @@ def render(shape, K0, out_name, grid="column", one_row=0):
         # stages run from x_T down to x_1
         stages = [T - k for k in block_order]
         out = []
-        for i in range(B):
+        for i in range(1, B + 1):   # scenarios are numbered from 1
             out += [rf"$x_{{{t}}}^{{{i}}}$" for t in stages]
         return out + [r"$x_{0}$"]
 
@@ -96,9 +96,9 @@ def render(shape, K0, out_name, grid="column", one_row=0):
          [T - 1 - t for t in cr_full], "full"),
         ("reverse ordering, sequential in horizon",
          list(range(T)), None),
-        ("reverse ordering, parallel in horizon ($x_1$ not separated)",
+        ("reverse ordering, parallel in horizon ($x_1^i$ not separated)",
          list(cr_full), "full"),
-        ("reverse ordering, parallel in horizon ($x_1$ separated)",
+        ("reverse ordering, parallel in horizon ($x_1^i$ separated)",
          list(cr_order) + [P], "prefix"),
     )
 
@@ -125,10 +125,13 @@ def render(shape, K0, out_name, grid="column", one_row=0):
         # reverse parallel without and with the x_1 separation
         rows = (rows[0], rows[2], rows[3], rows[4])
         # a phantom spacer column separates the left and right units
+        # the panels are square, so the width is what four panels plus
+        # a narrow spacer need at this height; anything wider becomes
+        # white space between the units (no tick labels need room)
         fig, axes = plt.subplots(
-            2, 5, figsize=(13.0, 7.4),
-            gridspec_kw={"hspace": 0.40, "wspace": 0.06,
-                         "width_ratios": [1, 1, 0.22, 1, 1]})
+            2, 5, figsize=(11.2, 7.4),
+            gridspec_kw={"hspace": 0.21, "wspace": 0.05,
+                         "width_ratios": [1, 1, 0.14, 1, 1]})
         for a in axes[:, 2]:
             a.axis("off")
     else:
@@ -223,7 +226,11 @@ def render(shape, K0, out_name, grid="column", one_row=0):
             ax.axvline(N_tail - 0.5, color="0.45", lw=0.6, zorder=2)
             ax.axhline(N_tail - 0.5, color="0.45", lw=0.6, zorder=2)
             ax.set_title(title, fontsize=9.5)
-            if B * T <= 24:  # omit block labels on large horizons
+            if grid == "2x2":
+                # the variable order is written under the subcaption
+                ax.set_xticks([])
+                ax.set_yticks([])
+            elif B * T <= 24:  # omit block labels on large horizons
                 ax.set_xticks(tick_pos)
                 ax.set_xticklabels(blk_labels, fontsize=5.5)
                 ax.set_yticks(tick_pos)
@@ -250,23 +257,51 @@ def render(shape, K0, out_name, grid="column", one_row=0):
         Patch(facecolor=(0.968, 0.912, 0.775), hatch="///",
               edgecolor="#1f3a6e", linewidth=0.45,
               linestyle=(0, (3, 2)),
-              label="cyclic-reduction levels"),
+              label="horizon-level parallelism hierarchy"),
     ]
     if grid == "2x2":
-        fig.legend(handles=handles, loc="upper center", ncol=6,
-                   frameon=False, fontsize=9,
-                   bbox_to_anchor=(0.5, 1.0))
-        fig.tight_layout(rect=(0, 0.03, 1, 0.93), h_pad=2.6)
-        for row, (row_name, _, _) in enumerate(rows):
+        # legend in two rows of three, a step above the panel-title
+        # size; shrink until the rows are no wider than the span of the
+        # four panels, so the legend never sets the page width itself
+        fig.tight_layout(rect=(0, 0.03, 1, 0.97), h_pad=2.6)
+        left = axes[0, 0].get_position().x0
+        right = axes[0, 4].get_position().x1
+        span = (right - left) * fig.bbox.width
+        # the legend sits directly above the top-row panel titles
+        # (anchored to the axes, not to the figure edge, so the gap does
+        # not depend on how the layout engine distributes spare height)
+        top = axes[0, 0].get_position().y1 + 0.032
+        size = 10.5
+        while True:
+            leg = fig.legend(handles=handles, loc="lower center", ncol=3,
+                             frameon=False, fontsize=size,
+                             handlelength=1.8, handleheight=1.1,
+                             columnspacing=1.3, handletextpad=0.6,
+                             bbox_to_anchor=(0.5, top))
+            fig.canvas.draw()
+            if leg.get_window_extent().width <= span or size <= 6.0:
+                break
+            leg.remove()
+            size -= 0.25
+        print(f"legend font {size:.2f} pt")
+        # per unit: the variable order of one tail (the same for every
+        # tail, root last) directly under the pair in the panel-title
+        # font, and the plain "(a) name" subcaption below that
+        tails = (",".join(str(i) for i in range(1, B + 1)) if B <= 3
+                 else rf"1,\ldots,{B}")
+        for row, (row_name, block_order, _) in enumerate(rows):
             p0 = axes[row // 2, (row % 2) * 3].get_position()
             p1 = axes[row // 2, (row % 2) * 3 + 1].get_position()
             xc = (p0.x0 + p1.x1) / 2
-            fig.text(xc, p0.y1 + 0.034,
-                     rf"\textbf{{{row_name}}}",
-                     ha="center", va="bottom", fontsize=11)
+            stages = ", ".join(rf"x_{{{T - k}}}^{{i}}" for k in block_order)
+            # order line directly under the panels, subcaption under it
+            fig.text(xc, p0.y0 - 0.018,
+                     rf"variable order: $\left({stages}\right)_{{i="
+                     rf"{tails}}},\; x_0$",
+                     ha="center", va="top", fontsize=9.5)
             letter = "abcd"[row]
-            fig.text(xc, p0.y0 - 0.040, rf"({letter})",
-                     ha="center", va="top", fontsize=11)
+            fig.text(xc, p0.y0 - 0.052, rf"({letter}) {row_name}",
+                     ha="center", va="top", fontsize=12)
     else:
         if grid != "one":  # standalone units carry no legend
             fig.legend(handles=handles, loc="upper center", ncol=3,

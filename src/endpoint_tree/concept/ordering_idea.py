@@ -126,12 +126,12 @@ def render_figure(K0, shape, layout, out_name, subtitle,
         else:
             stages = [T - k for k in block_order]
         out = []
-        for i in range(B):
+        for i in range(1, B + 1):   # scenarios are numbered from 1
             out += [rf"$x_{{{t}}}^{{{i}}}$" for t in stages]
             if layout == "inplace":
                 out.append(rf"$x_{{1}}^{{{i}}}$")
         if layout == "grouped":
-            out += [rf"$x_{{1}}^{{{i}}}$" for i in range(B)]
+            out += [rf"$x_{{1}}^{{{i}}}$" for i in range(1, B + 1)]
         return out + [r"$x_{0}$"]
 
     n_perm = T if layout == "none" else P

@@ -71,7 +71,8 @@ def run(num_stages, out_suffix):
 
     def labels(stage_lists):
         out = []
-        for i, stages in enumerate(stage_lists):
+        # scenarios are numbered from 1
+        for i, stages in enumerate(stage_lists, start=1):
             out += [rf"$x_{{{t}}}^{{{i}}}$" for t in stages]
         # the shared root node is the stage x_0, drawn last
         return out + [r"$x_{0}$"]
