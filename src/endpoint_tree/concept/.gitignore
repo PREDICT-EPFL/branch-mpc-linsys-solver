@@ -1,0 +1,3 @@
+# The figure drawn here is a paper artefact worth versioning, so the
+# repository-wide *.pdf rule does not apply in this folder.
+!*.pdf
