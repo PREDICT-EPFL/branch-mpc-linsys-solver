@@ -119,6 +119,21 @@ def create_path_transform_kernel(n: int, dtype=wp.float64):
 
 
 @lru_cache(maxsize=None)
+def create_transpose_blocks_kernel(n: int, dtype=wp.float64):
+    """``dst[b] = src[b]^T`` for a batch of ``(n, n)`` blocks (the
+    connector is the transpose of the last off-diagonal block)."""
+    module = make_module(f"transpose_blocks_{n}")
+
+    @wp.kernel(module=module)
+    def transpose_blocks_kernel(src: wp.array3d(dtype=dtype),   # type: ignore
+                                dst: wp.array3d(dtype=dtype)):  # type: ignore
+        b, i, j = wp.tid()
+        dst[b, i, j] = src[b, j, i]
+
+    return transpose_blocks_kernel
+
+
+@lru_cache(maxsize=None)
 def create_pack_rhs_kernel(dtype=wp.float64):
     """Scatter the logical RHS tail ``(B, T, n_b)`` into the padded
     prefix solve buffer ``v: (B, P, n_p, 1)`` and the padded final-node

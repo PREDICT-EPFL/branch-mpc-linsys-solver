@@ -2,7 +2,7 @@
 
 UPSTREAM STATUS.  The forward-only and backward-only solve builders were
 adopted upstream (socu commit 2ff9dc0, tail feature/sequential) as
-``create_forward_substitution_launch`` / ``create_backward_substitution_launch``;
+``create_cholesky_forward_substitution_launch`` / ``create_cholesky_backward_substitution_launch``;
 this module re-exports them under the names used throughout this project.
 The fused factor-plus-forward builder below is still local-only and is
 written to be moved verbatim into ``socu/block_tridiag_solver.py`` when
@@ -23,7 +23,7 @@ import socu.block_tridiag_solver as _upstream
 from socu.block_tridiag_solver import (
     calculate_off_diag_storage_len,
     calculate_recursive_iterations,
-    create_backward_substitution_launch,
+    create_cholesky_backward_substitution_launch,
     create_cholesky_factor_forward_substituition_iteration_kernel,
     create_cholesky_factor_gemm_nn_blocked_kernel,
     create_cholesky_factor_potrf_l_blocked_kernel,
@@ -33,15 +33,15 @@ from socu.block_tridiag_solver import (
     create_cholesky_factor_trsm_rltn_blocked_kernel,
     create_forward_substitution_gemm_nn_blocked_kernel,
     create_forward_substitution_gemm_tn_blocked_kernel,
-    create_forward_substitution_launch,
+    create_cholesky_forward_substitution_launch,
     create_forward_substitution_trsm_llnn_blocked_kernel,
     optimal_problem_settings,
 )
 from socu.utils import create_cuda_graph_callback
 
 #: Upstream builders under this project's historical names.
-create_cholesky_forward_solve_launch = create_forward_substitution_launch
-create_cholesky_backward_solve_launch = create_backward_substitution_launch
+create_cholesky_forward_solve_launch = create_cholesky_forward_substitution_launch
+create_cholesky_backward_solve_launch = create_cholesky_backward_substitution_launch
 
 
 def _solve_launch_preamble(L, E, x, block_dim, block_size, dtype, phase):

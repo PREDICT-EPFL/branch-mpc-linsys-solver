@@ -23,8 +23,8 @@ SOCU storage contract (upstream):
 import warp as wp
 from socu.block_tridiag_solver import (
     calculate_off_diag_storage_len,
-    create_backward_substitution_launch,
-    create_forward_substitution_launch,
+    create_cholesky_backward_substitution_launch,
+    create_cholesky_forward_substitution_launch,
     optimal_problem_settings,
 )
 
@@ -87,13 +87,13 @@ class TailEngine:
 
     def build_forward_launch(self, x) -> Launch:
         """Forward substitution launch bound to ``x`` (in place)."""
-        return create_forward_substitution_launch(
+        return create_cholesky_forward_substitution_launch(
             self.diag_factor, self.offdiag_factor, x, dtype=self.dtype,
             device=self.device)
 
     def build_backward_launch(self, x) -> Launch:
         """Backward substitution launch bound to ``x`` (in place)."""
-        return create_backward_substitution_launch(
+        return create_cholesky_backward_substitution_launch(
             self.diag_factor, self.offdiag_factor, x, dtype=self.dtype,
             device=self.device)
 

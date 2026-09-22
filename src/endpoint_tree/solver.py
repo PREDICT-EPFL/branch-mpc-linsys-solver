@@ -55,6 +55,7 @@ from src.endpoint_tree.kernels.tail import (
     build_forward_path_program,
     create_pack_rhs_kernel,
     create_path_transform_kernel,
+    create_transpose_blocks_kernel,
     create_unpack_solution_kernel,
     pad_blocks,
 )
@@ -156,6 +157,7 @@ class EndpointTreeSolver:
         self._k_boundary = create_boundary_factor_kernel(n_p, n_r, Lp, dt)
         self._k_pack = create_pack_rhs_kernel(dt)
         self._k_unpack = create_unpack_solution_kernel(dt)
+        self._k_transpose = create_transpose_blocks_kernel(n_p, dt)
         self._k_fnode_rhs = create_final_node_rhs_kernel(n_p, Lp, dt)
         self._k_fnode_rec = create_final_node_recover_kernel(n_p, n_r,
                                                              Lp, dt)
@@ -252,6 +254,39 @@ class EndpointTreeSolver:
         copy_into(self._D0f, D[:, T - 1], "D0")
         copy_into(self._G, G, "G_T")
         copy_into(self._R, np.asarray(matrix.R), "R")
+        self._has_values = True
+        self._has_factor = False
+
+    def update_device(self, D, E, G_T, R) -> None:
+        """Take new matrix values from device buffers, for outer loops
+        that rebuild the matrix on the GPU every iteration (an
+        interior-point method, for instance).
+
+        ``D`` ``(B, T, n_p, n_p)``, ``E`` ``(B, T-1, n_p, n_p)``, ``G_T``
+        ``(B, n_p, n_r)`` and ``R`` ``(n_r, n_r)`` are Warp arrays on the
+        solver's device with the solver's dtype, already in the padded
+        storage block size :attr:`padded_block_dim` (identity dummies on
+        the padded part of the diagonal blocks, zeros elsewhere; when
+        the logical block size is aligned nothing is padded).  The
+        values are copied device to device into the persistent buffers,
+        nothing is allocated and the host is never involved; the factor
+        is invalidated like after :meth:`update`.  Use :meth:`update`
+        for logical, unpadded host data.
+        """
+        B, T, n_b, n_r = self._shape.dims()
+        P, n_p = self._P, self._n_p
+        self._check_device_array(D, (B, T, n_p, n_p), "D")
+        self._check_device_array(E, (B, max(T - 1, 0), n_p, n_p), "E")
+        self._check_device_array(G_T, (B, n_p, n_r), "G_T")
+        self._check_device_array(R, (n_r, n_r), "R")
+        if P > 0:
+            self._engine.stage(D[:, :P], E[:, :P - 1])
+            # connector B = (prefix rows, final cols) = E[T-2]^T
+            wp.launch(self._k_transpose, dim=[B, n_p, n_p],
+                      inputs=[E[:, P - 1], self._Bc], device=self._device)
+        copy_into(self._D0f, D[:, T - 1], "D0")
+        copy_into(self._G, G_T, "G_T")
+        copy_into(self._R, R, "R")
         self._has_values = True
         self._has_factor = False
 
