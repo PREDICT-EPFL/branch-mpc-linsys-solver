@@ -1,5 +1,5 @@
 """Tile-kernel capability probes (moved out of production construction,
-plan 3 section 15.3): Warp tile kernels whose shapes exceed device
+Warp tile kernels whose shapes exceed device
 shared memory fail to launch with only a warning, so probe the largest
 supported specializations numerically and fail loudly here instead."""
 
@@ -50,7 +50,7 @@ def test_single_tile_root_factor_launches(n_r):
 def test_big_block_end_to_end():
     """The largest supported tail block size solves correctly (a
     silently failed tile launch would corrupt the solution)."""
-    from experiments.dense_arrow.benchmarks.problems import ProblemSpec, generate_problem
+    from tests.dense_arrow.problems import ProblemSpec, generate_problem
     from baselines import reference
     from src.dense_arrow.solver import Solver
     spec = ProblemSpec(num_tails=2, horizon=4, block_size=64,
@@ -73,7 +73,7 @@ def test_oversized_nrhs_raises_instead_of_zeros():
     verified empirically for both the SOCU substitution kernels and the
     project's chunked tile kernels; this test locks the loud-failure
     contract in."""
-    from experiments.dense_arrow.benchmarks.problems import ProblemSpec, generate_problem
+    from tests.dense_arrow.problems import ProblemSpec, generate_problem
     from src.dense_arrow.problem import TreeVector
     from src.dense_arrow.solver import Solver
     wp = pytest.importorskip("warp")

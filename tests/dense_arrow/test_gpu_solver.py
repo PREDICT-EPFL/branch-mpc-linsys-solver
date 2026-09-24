@@ -6,7 +6,7 @@ All tests are marked ``gpu`` and skip automatically without a CUDA device.
 import numpy as np
 import pytest
 
-from experiments.dense_arrow.benchmarks.problems import ProblemSpec, generate_problem
+from tests.dense_arrow.problems import ProblemSpec, generate_problem
 from baselines import reference as validation
 
 wp = pytest.importorskip("warp")
@@ -37,7 +37,7 @@ def _solve_gpu(spec, num_rhs=None, precision=None):
 # ----------------------------------------------------------------- SOCU layer
 def test_socu_batched_factor_solve_matches_numpy():
     """Upstream SOCU batched multi-RHS solve against the NumPy chain solve
-    (plan 6.1 integration test, B > 1 and multiple RHS)."""
+    (integration test, B > 1 and multiple RHS)."""
     from src.dense_arrow.socu import TailEngine as SocuTailEngine
     spec = ProblemSpec(num_tails=4, horizon=6, block_size=16,
                        root_dim=4, seed=3)

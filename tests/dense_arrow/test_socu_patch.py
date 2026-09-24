@@ -21,7 +21,7 @@ from src.dense_arrow._socu_fused import (  # noqa: E402
     create_cholesky_factor_and_forward_solve_launch,
     create_cholesky_forward_solve_launch,
 )
-from experiments.dense_arrow.benchmarks.problems import ProblemSpec, generate_problem  # noqa: E402
+from tests.dense_arrow.problems import ProblemSpec, generate_problem  # noqa: E402
 from baselines import reference as validation  # noqa: E402
 
 pytestmark = pytest.mark.gpu

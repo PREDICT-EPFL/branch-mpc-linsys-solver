@@ -24,7 +24,7 @@ Kernel families over the root coupling ``M_i^T`` (stored as
 Cross-tail accumulation is shared by both families: one atomic
 kernel subtracts every per-tail contribution into the initialized
 root target.  Floating-point summation order is scheduling dependent;
-solution and residual tolerances cover it (plan 4 measured the atomic
+solution and residual tolerances cover it (measurements put the atomic
 path no slower than the removed fixed-order pairwise tree at every
 representative point, so no fallback is kept).
 """

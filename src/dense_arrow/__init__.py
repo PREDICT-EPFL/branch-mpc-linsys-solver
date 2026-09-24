@@ -14,7 +14,7 @@ Typical usage::
 
 ``Solver`` is imported lazily so that CPU-only work (references, hosts
 without CUDA) does not initialize Warp.  Problem generation lives in
-:mod:`experiments.dense_arrow.benchmarks.problems`; comparison solvers (cuDSS, CPU references)
+:mod:`tests.dense_arrow.problems`; comparison solvers (cuDSS, CPU references)
 in :mod:`baselines`.
 """
 

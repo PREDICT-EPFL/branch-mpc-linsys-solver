@@ -16,7 +16,6 @@ dependencies:
       - warp-lang==1.16.0
       # nvmath-python provides the raw cuDSS bindings for the baseline
       - nvmath-python[cu12]==0.7.0
-      # SOCU installed from the local checkout, branch feature/sequential
-      # (sequential algorithm + public forward/backward substitution):
-      #   pip install ~/Documents/gpu_code/socu
-      - socu
+      # SOCU: batched block-tridiagonal Cholesky (needs the public
+      # forward/backward substitution launches, upstream main >= a101721)
+      - git+https://github.com/PREDICT-EPFL/socu.git

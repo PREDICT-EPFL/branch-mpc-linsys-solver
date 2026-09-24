@@ -1,4 +1,4 @@
-"""Direct-factor reconstruction tests (plan 3, stage 1).
+"""Direct-factor reconstruction tests .
 
 The principal invariant: Pi Phi Pi^T = L_hat L_hat^T with the factor
 built structurally from per-tail permuted tail factors, root coupling
@@ -37,7 +37,7 @@ def _factor(engine):
 
 
 def _problem(B=3, T=8, n_b=8, n_r=4, seed=0, precision="float64"):
-    from experiments.dense_arrow.benchmarks.problems import ProblemSpec, generate_problem
+    from tests.dense_arrow.problems import ProblemSpec, generate_problem
     spec = ProblemSpec(num_tails=B, horizon=T, block_size=n_b,
                        root_dim=n_r, num_rhs=1, precision=precision,
                        seed=seed)

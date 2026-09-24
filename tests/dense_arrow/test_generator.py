@@ -3,7 +3,7 @@
 import numpy as np
 import pytest
 
-from experiments.dense_arrow.benchmarks.problems import ProblemSpec, generate_problem
+from tests.dense_arrow.problems import ProblemSpec, generate_problem
 from src.dense_arrow.problem import TreeVector
 from src.dense_arrow.problem import structural_matvec
 

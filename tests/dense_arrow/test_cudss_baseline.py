@@ -2,7 +2,7 @@
 
 import pytest
 
-from experiments.dense_arrow.benchmarks.problems import ProblemSpec, generate_problem
+from tests.dense_arrow.problems import ProblemSpec, generate_problem
 from baselines import reference as validation
 from src.dense_arrow.problem import TreeVector
 

@@ -3,7 +3,7 @@
 :func:`solve_structured_cpu` is the structured block-Cholesky algorithm
 in plain NumPy, validating the exact equations the GPU solver
 implements.  It takes a
-:class:`~experiments.dense_arrow.benchmarks.problems.GeneratedProblem`
+:class:`~tests.dense_arrow.problems.GeneratedProblem`
 and returns the solution parts ``(x_tail, x_root)`` as NumPy arrays.
 """
 

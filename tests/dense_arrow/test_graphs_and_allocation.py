@@ -1,5 +1,5 @@
 """CUDA-graph capture, warm-path allocation, and invalidation rules
-(plan 3, stage 6)."""
+."""
 
 import numpy as np
 import pytest
@@ -11,7 +11,7 @@ DEV = "cuda:0"
 
 
 def _problem(B=11, T=16, n_b=8, n_r=2, nrhs=1, seed=0):
-    from experiments.dense_arrow.benchmarks.problems import ProblemSpec, generate_problem
+    from tests.dense_arrow.problems import ProblemSpec, generate_problem
     spec = ProblemSpec(num_tails=B, horizon=T, block_size=n_b,
                        root_dim=n_r, num_rhs=nrhs,
                        precision="float64", seed=seed)
@@ -94,7 +94,7 @@ def test_graphs_survive_value_updates():
 def test_bound_and_staged_paths_agree():
     """The zero-copy bound-pointer path and the staged host-rhs
     convenience path produce the same solution (up to SOCU's
-    epsilon-level atomic-order nondeterminism, plan 9.4)."""
+    epsilon-level atomic-order nondeterminism)."""
     problem = _problem(B=5, T=13, n_r=4, seed=2)
     solver, rhs, out = _warm_solver(problem)
     a = out.numpy()
@@ -124,7 +124,7 @@ def test_separate_factor_and_solve_graphs():
 
 def test_single_refresh_per_factorization():
     """One update() followed by one factorize() performs exactly one
-    pristine-to-factor refresh of each tail buffer (plan 4: staging must
+    pristine-to-factor refresh of each tail buffer (staging must
     not duplicate the device copy that factorize() owns)."""
     from src.dense_arrow.solver import Solver
     problem = _problem()

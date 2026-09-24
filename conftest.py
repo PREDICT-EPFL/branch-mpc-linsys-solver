@@ -1,7 +1,8 @@
-"""Pytest configuration for the tree_socu test suite.
+"""Pytest configuration.
 
 Placing this conftest at the project root makes pytest prepend this
-directory to ``sys.path`` so the ``tree_socu`` package is importable.
+directory to ``sys.path`` so ``src``, ``baselines`` and ``tests`` are
+importable.
 
 CPU tests run without a GPU.  Tests marked ``gpu`` are skipped
 automatically when Warp cannot find a CUDA device.

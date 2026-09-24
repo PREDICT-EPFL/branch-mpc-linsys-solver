@@ -1,85 +1,65 @@
-# socu_tree: GPU direct solvers for root-coupled block-tridiagonal systems
+# socu_tree: a GPU direct solver for Branch MPC linear systems
 
-Python/Warp research code for solving symmetric positive-definite (SPD)
-linear systems in which many block-tridiagonal scenario tails are
-coupled through one shared root block.  The current work is the
-**endpoint-coupled** solver in `endpoint_tree/`: each scenario tail
-couples to the root through its final (root-facing) block only, which
-is the structure produced by immediate-branching Branch MPC and by
-delayed-branching contingency MPC after prefix condensation.
+Python/Warp code accompanying the paper on a two-level parallel direct
+solver for the symmetric positive-definite (SPD) linear systems of
+Branch MPC: many block-tridiagonal scenario tails coupled to one shared
+root block, each tail through its root-facing (endpoint) block only.
+This is the structure of immediate-branching scenario MPC, where all
+scenarios share the first decision and evolve independently afterwards.
 
-Each tail is stored and eliminated in leaf-to-root order.  Because only
-the last block of a tail touches the root, the coupling is one
-`(B, n_b, n_r)` block per tail, so all root-related storage and work is
-independent of the horizon.  The tail prefixes are factored in parallel
-with the upstream [SOCU](https://github.com/PREDICT-EPFL/socu) batched
-block-tridiagonal Cholesky, the transformed connector is confined to a
-logarithmic-depth ancestor path in the cyclic-reduction elimination
-tree, and the root Schur complement is accumulated by parallel
-reduction.  The global sparse matrix is never assembled.  The GPU stack
-is Warp-only (no CuPy), with persistent preallocated buffers, no
-allocations inside timed iterations, and separate CUDA graphs for the
-warm factorization and solve pipelines.
+The solver in `src/endpoint_tree/` exploits two levels of parallelism
+in one Cholesky factorization and triangular solve: the scenario tails
+are processed concurrently, and inside every tail the stages are
+processed in the logarithmic-depth levels of a cyclic-reduction
+ordering.  The tail prefixes are factored with the upstream
+[SOCU](https://github.com/PREDICT-EPFL/socu) batched block-tridiagonal
+Cholesky, the endpoint coupling is confined to a logarithmic-depth
+ancestor path of the elimination tree, and the root Schur complement is
+accumulated by parallel reduction.  The global sparse matrix is never
+assembled.  The GPU stack is Warp only, with persistent preallocated
+buffers, no allocations inside timed iterations, and one CUDA graph
+each for the factorization and the solve.
 
 ## Layout
 
-    src/                       the two solver packages
-      dense_arrow/           general block-arrow solver: every stage of
-                               a tail may couple to the shared root
-        problem.py             TreeShape / TreeMatrix / TreeVector
-        solver.py              Solver (update/factorize/solve, CUDA graphs)
-        socu.py, _utils.py     SOCU adapter, device/dtype helpers
-        kernels/               coupling and dense-root Warp kernels
-      endpoint_tree/           endpoint-coupled solver (current work):
-                               only the root-facing block of each tail
-                               couples to the root
+    src/
+      endpoint_tree/           the solver of the paper
         problem.py             EndpointTreeShape / EndpointTreeMatrix
                                (matvec, to_csr_lower) / EndpointTreeVector
-        solver.py              EndpointTreeSolver (update/factorize/solve,
-                               CUDA graphs, phase timing)
-        kernels/               connector-path, endpoint and root kernels
+        solver.py              EndpointTreeSolver (update / factorize /
+                               solve, CUDA graphs, phase timing)
+        kernels/               tail, connector-path and root Warp kernels
+        reference.py           NumPy reference factorization and solve
         _reuse.py              the single place that imports shared
                                primitives from dense_arrow (one-way)
-        concept/               sparsity-pattern figures explaining the
-                               ordering (drawing programs, not timings)
-    experiments/               runnable experiments and their outputs;
-                               never imported by src/
-      quadrotor/               full-attitude quadrotor branch-MPC
-                               benchmark (the paper's application), its
-                               results/ and figures/
-      endpoint_tree/           figures/ written by endpoint_tree/concept
-      dense_arrow/           benchmark engine, campaign scripts and
-                               outputs for the general block-arrow solver
-        benchmarks/, scripts/, results/, plots/
-    admm/                      sparse-QP ADMM solver (OSQP-style API;
-                               tree or cuDSS normal-matrix backend)
-    baselines/                 comparison solvers shared by every
-                               experiment: cuDSS, CHOLMOD, PARDISO,
-                               QDLDL, SciPy references
-    paper_draft/               ACC paper source (main.tex)
-    tests/                     pytest suites: dense_arrow/ and
-                               endpoint_tree/ (CPU tests run without a GPU)
-    plans/, doc/               plan documents, reviews, math and API notes
-    RiskAverseTrajOpt/         vendored risk-averse trajectory-optimization
-                               code (Lew et al.); the drone and hopper
-                               endpoint benchmarks live here
+        concept/               the sparsity-pattern figure explaining
+                               the ordering (a drawing, not a timing)
+      dense_arrow/             general block-arrow solver (every stage
+                               of a tail may couple to the root); provides
+                               the SOCU adapter and root kernels the
+                               endpoint solver reuses
+    baselines/                 cuDSS, CHOLMOD and PARDISO wrappers and
+                               the CPU validation references
+    experiments/quadrotor/     the paper's benchmark on full-attitude
+                               quadrotor Branch-MPC matrices, its thermal
+                               protocol and figure scripts
+    tests/                     pytest suites (CPU tests run without a GPU)
 
-## Environment
+## Installation
 
-Developed and measured with conda env `socu` (see `environment.yml`):
-Python 3.12.12, warp-lang 1.16.0, nvmath-python 0.7.0 (cuDSS 0.7.1
-bindings only), numpy 2.2.6, scipy 1.16.3, pandas 2.3.3,
-matplotlib 3.10.7, PyYAML 6.0.3, pytest 9.0.2, and SOCU installed from
-the local checkout `~/Documents/gpu_code/socu`, branch
-`feature/sequential` (base commit `2ff9dc0`, which adds the public
-forward/backward substitution launches and the sequential algorithm):
+Developed and measured in the conda environment of `environment.yml`
+(Python 3.12, warp-lang 1.16.0, numpy 2.2.6, scipy 1.16.3,
+nvmath-python 0.7.0 for the cuDSS bindings) on an NVIDIA GeForce
+RTX 5090 with driver 580:
 
     conda env create -f environment.yml
     conda activate socu
-    pip install ~/Documents/gpu_code/socu
 
-GPU used for the reported experiments: NVIDIA GeForce RTX 5090 (32 GB),
-driver 580.159.03.
+SOCU is installed from its public repository by the environment file;
+the solver needs its public forward and backward substitution launches
+(upstream `main`).  Intel MKL PARDISO (through `mkl` and its Python
+bindings) and scikit-sparse are optional and only used by the CPU
+baselines.
 
 ## Solver usage
 
@@ -88,67 +68,56 @@ from src.endpoint_tree import EndpointTreeShape, EndpointTreeSolver
 # a synthetic SPD instance with this structure (test fixture generator)
 from tests.endpoint_tree.problems import generate_endpoint_problem
 
-# n_r = n_b is the regime of interest
 shape = EndpointTreeShape(num_tails=64, num_stages=32,
                           tail_block_dim=8, root_dim=8)
 problem = generate_endpoint_problem(shape, seed=0)
 
 solver = EndpointTreeSolver(shape, device="cuda:0")
-solver.update(problem.matrix)      # values only (explicit transfer)
-solver.factorize()                 # complete permuted Cholesky factor
-solution = solver.solve(problem.rhs)   # owned device EndpointTreeVector
+solver.update(problem.matrix)          # values only (explicit transfer)
+solver.factorize()                     # permuted Cholesky factor
+solution = solver.solve(problem.rhs)   # device EndpointTreeVector
 ```
 
-`num_stages` counts uniform algebraic blocks per scenario in
-**leaf-to-root** storage order: `tail[:, 0]` is the leaf and
-`tail[:, T-1]` is the root-facing endpoint that carries `G_T`.  The
-application builder maps physical variables into uniform blocks.
-Binding device `rhs`/`out` once and calling `solve(rhs, out=out)`
-replays the captured graph with no allocation.
+`num_stages` counts uniform blocks per scenario in **leaf-to-root**
+storage order: `tail[:, 0]` is the leaf and `tail[:, T-1]` the
+root-facing endpoint that carries the coupling block.  Binding device
+`rhs` / `out` once and calling `solve(rhs, out=out)` replays the
+captured graph with no allocation; `update_device(D, E, G_T, R)` takes
+new values that already live on the device.  The block size must be
+aligned to the SOCU storage rules (even, for float64).
 
-## Benchmarks
+## Reproducing the paper's experiments
 
-    # the paper's application benchmark on real quadrotor matrices
-    # (CPU baselines bound to the 8 performance cores)
+    # speedup heat maps against cuDSS and eight-core PARDISO
     cd experiments/quadrotor && ./run_quadrotor_heatmap.sh
-    # redraw its figures from an existing CSV, without re-measuring
+    # redraw the figures from an existing CSV without re-measuring
     python quadrotor_endpoint_benchmark.py --replot results/quadrotor_endpoint_heatmap.csv
+    # absolute latency along one axis (fixed N or fixed M)
+    ./run_quadrotor_heatmap.sh --tails 20 40 80 100 200 --horizons 30 --output results/T30.csv
+    python quadrotor_cpu_baselines_plot.py --input results/T30.csv --layout combined
 
-The ordering figures used in the paper are drawn (not timed) by
+The benchmark assembles the KKT matrices of an immediate-branching
+scenario MPC for a 12-state quadrotor for every (scenarios, horizon)
+grid point and times the proposed solver, cuDSS and PARDISO on the
+identical matrix, precision and right-hand side; CHOLMOD provides the
+untimed reference solution.  Reported quantities are medians with the
+interquartile range over the timed executions, factorization and solve
+separately (CUDA events on the GPU, wall clock around the bare MKL call
+on the CPU).  The thermal protocol (burn-in, randomized grid order,
+phase-specific re-warm, block-alternating interleaving of the GPU
+solvers, telemetry and a raw per-sample sidecar) is documented in the
+module docstring of `quadrotor_endpoint_benchmark.py`; the shell script
+binds the CPU baselines to the performance cores.
+
+The ordering figure of the paper is drawn (not timed) by
 
     python -m src.endpoint_tree.concept.ordering_merged
-    python -m src.endpoint_tree.concept.ordering_idea
-    python -m src.endpoint_tree.concept.ordering_fill
 
-which write into `experiments/endpoint_tree/figures/`.
-
-Baselines are cuDSS (general GPU sparse direct Cholesky, through the
-raw `nvmath.bindings.cudss` interface on Warp device buffers) and, on
-the CPU, Intel MKL PARDISO and CHOLMOD -- all receiving the identical
-matrix, precision and right-hand side.  Reported quantities are CUDA-event medians with the
-interquartile range, factorization and solve separately, plus residual,
-relative error, persistent workspace bytes, connector path length and a
-per-phase breakdown.
-
-## Sparse-QP ADMM solver
-
-`admm/` solves `min 0.5 x'Px + q'x  s.t.  l <= Ax <= u` from ordinary
-CSC input with scaled ADMM at fixed `rho`; the normal matrix
-`K = P + rho A'A` is factored either by the structured tree backend
-(selected automatically when the conservative analyzer verifies the
-block-arrow pattern) or by cuDSS -- one ADMM loop, one sparse frontend,
-identical stopping rule (see `plans/plan_admm.md`):
-
-```python
-from admm import Solver, Settings
-
-solver = Solver()
-solver.setup(P, q, A, l, u, settings=Settings(rho=1.0,
-                                              linear_solver="auto"))
-result = solver.solve()          # result.info.linear_solver: tree/cudss
-solver.update(q=q_new)           # values only; sparsity is immutable
-```
+which writes `endpoint_orderings_2x2.pdf` into `src/endpoint_tree/concept/`.
+The scripts `quadrotor_smpc_*.py` and `quadrotor_nlp_*.py` draw the
+open- and closed-loop maneuvers the benchmark matrices come from (SciPy
+and CasADi/IPOPT respectively).
 
 ## Tests
 
-    python -m pytest -q               # CPU tests run without a GPU
+    python -m pytest -q        # GPU tests are skipped without a CUDA device

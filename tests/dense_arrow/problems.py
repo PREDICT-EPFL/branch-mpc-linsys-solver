@@ -1,4 +1,5 @@
-"""Benchmark/test problem fixtures: specs and the reproducible generator.
+"""Test problem fixtures of the block-arrow solver: specs and the
+reproducible generator.
 
 ``ProblemSpec`` and ``GeneratedProblem`` describe randomly generated SPD
 scenario-tree systems; the ``factor`` mode builds every tail matrix from
@@ -11,8 +12,8 @@ are available for validation:
 - the right-hand side equals ``A @ z_true`` for a known ``z_true``.
 
 The known construction factors never leave this module; solvers only see
-the :class:`src.problem.TreeMatrix` block data and the right-hand sides.
-This module is benchmark/test support: core solver code never imports it.
+the :class:`src.dense_arrow.problem.TreeMatrix` block data and the right-hand sides.
+This module is test support: core solver code never imports it.
 """
 
 import time
@@ -421,115 +422,3 @@ def generate_problem(spec: ProblemSpec, estimate_condition=True,
 # --------------------------------------------------------------------------
 # Scenario optimal-control QP in conventional sparse form (ADMM stage 6)
 # --------------------------------------------------------------------------
-def generate_scenario_qp(num_tails=3, num_stages=6, nx=6, nu=2, seed=0):
-    """A scenario-based stochastic optimal-control QP in ordinary CSC
-    form, whose ADMM normal matrix ``P + rho A'A`` has the supported
-    one-level block-arrow structure under the canonical variable order.
-
-    Variables: per tail ``b`` and stage ``t`` a block
-    ``(x_t (nx), u_t (nu))``, tails consecutive, followed by the
-    shared first-stage control ``u_s (nu)`` (the root).
-    Constraints: fixed initial state per tail, per-tail linear
-    dynamics ``x_{t+1} = Ad_b x_t + Bd_b u_t``, the non-anticipativity
-    coupling ``u_0(b) = u_s``, and box bounds on every control.  The
-    cost is strictly convex block-diagonal (with a small within-stage
-    ``x``/``u`` cross term), so ``K_rho`` is SPD for every ``rho > 0``.
-
-    Returns ``(P, q, A, l, u, meta)`` with CSC ``P`` (upper triangle),
-    CSC ``A``, dense FP64 vectors, and ``meta`` recording the tree
-    dimensions ``(B, T, n_b, n_r)`` the analyzer should recover.
-    """
-    import scipy.sparse as sp
-    rng = np.random.default_rng(seed)
-    B, T = int(num_tails), int(num_stages)
-    if B < 2 or T < 2:
-        raise ValueError("need num_tails >= 2 and num_stages >= 2")
-    n_b = nx + nu
-    L = T * n_b
-    n = B * L + nu
-
-    def x_idx(b, t):
-        return b * L + t * n_b
-
-    def u_idx(b, t):
-        return b * L + t * n_b + nx
-
-    us0 = B * L  # shared control offset
-
-    # ---- cost: block-diagonal SPD upper triangle ---------------------------
-    rows, cols, vals = [], [], []
-    for b in range(B):
-        for t in range(T):
-            for i in range(nx):
-                rows.append(x_idx(b, t) + i); cols.append(x_idx(b, t) + i)
-                vals.append(1.0 + rng.uniform(0.0, 1.0))
-            for i in range(nu):
-                rows.append(u_idx(b, t) + i); cols.append(u_idx(b, t) + i)
-                vals.append(0.5 + rng.uniform(0.0, 0.5))
-            # small within-stage cross terms (stay inside the D block;
-            # they also keep every tail internally connected, which
-            # the conservative analyzer requires)
-            for i in range(nu):
-                rows.append(x_idx(b, t)); cols.append(u_idx(b, t) + i)
-                vals.append(0.05)
-    for i in range(nu):
-        rows.append(us0 + i); cols.append(us0 + i)
-        vals.append(0.5 + rng.uniform(0.0, 0.5))
-    P = sp.csc_matrix((vals, (rows, cols)), shape=(n, n))
-    P.sum_duplicates(); P.sort_indices()
-
-    q = rng.standard_normal(n) * 0.1
-
-    # ---- constraints --------------------------------------------------------
-    a_rows, a_cols, a_vals, lo, hi = [], [], [], [], []
-    row = 0
-    for b in range(B):
-        Ad = np.eye(nx) + 0.05 * rng.standard_normal((nx, nx)) / np.sqrt(nx)
-        Bd = rng.standard_normal((nx, nu)) / np.sqrt(nu)
-        x_init = rng.standard_normal(nx) * 0.5
-        # fixed initial state
-        for i in range(nx):
-            a_rows.append(row); a_cols.append(x_idx(b, 0) + i)
-            a_vals.append(1.0)
-            lo.append(x_init[i]); hi.append(x_init[i])
-            row += 1
-        # dynamics x_{t+1} = Ad x_t + Bd u_t
-        for t in range(T - 1):
-            for i in range(nx):
-                a_rows.append(row); a_cols.append(x_idx(b, t + 1) + i)
-                a_vals.append(-1.0)
-                for j in range(nx):
-                    a_rows.append(row); a_cols.append(x_idx(b, t) + j)
-                    a_vals.append(Ad[i, j])
-                for j in range(nu):
-                    a_rows.append(row); a_cols.append(u_idx(b, t) + j)
-                    a_vals.append(Bd[i, j])
-                lo.append(0.0); hi.append(0.0)
-                row += 1
-        # non-anticipativity: u_0(b) = u_s
-        for i in range(nu):
-            a_rows.append(row); a_cols.append(u_idx(b, 0) + i)
-            a_vals.append(1.0)
-            a_rows.append(row); a_cols.append(us0 + i)
-            a_vals.append(-1.0)
-            lo.append(0.0); hi.append(0.0)
-            row += 1
-        # control box bounds
-        for t in range(T):
-            for i in range(nu):
-                a_rows.append(row); a_cols.append(u_idx(b, t) + i)
-                a_vals.append(1.0)
-                lo.append(-1.5); hi.append(1.5)
-                row += 1
-    for i in range(nu):
-        a_rows.append(row); a_cols.append(us0 + i)
-        a_vals.append(1.0)
-        lo.append(-1.5); hi.append(1.5)
-        row += 1
-    A = sp.csc_matrix((a_vals, (a_rows, a_cols)), shape=(row, n))
-    A.sum_duplicates(); A.sort_indices()
-
-    meta = {"num_tails": B, "num_stages": T, "tail_block_dim": n_b,
-            "root_dim": nu}
-    return (P, np.asarray(q), A, np.asarray(lo, dtype=np.float64),
-            np.asarray(hi, dtype=np.float64), meta)

@@ -1,13 +1,12 @@
 [project]
 name = "tree-socu"
 version = "0.2.0"
-description = "GPU one-level scenario-tree Cholesky solver on SOCU, with cuDSS benchmarks"
+description = "GPU direct solver for root-coupled block-tridiagonal SPD systems (Branch MPC), built on SOCU"
 requires-python = ">=3.11"
 dependencies = [
     # Core solver dependencies only; versions pinned to the environment
     # used for the reported experiments (see environment.yml).  SOCU is
-    # the local checkout of branch feature/sequential (base 2ff9dc0).
-    # SciPy serves the admm sparse frontend (setup-time symbolic work).
+    # https://github.com/PREDICT-EPFL/socu (pip install from git).
     "numpy==2.2.6",
     "scipy==1.16.3",
     "warp-lang==1.16.0",
@@ -16,7 +15,7 @@ dependencies = [
 
 [project.optional-dependencies]
 test = ["pytest==9.0.2"]
-# the cuDSS linear-system implementation of admm/ needs nvmath-python
+# the cuDSS baseline needs the raw cuDSS bindings of nvmath-python
 cudss = ["nvmath-python[cu12]==0.7.0"]
 # benchmark/baseline modules run from the repository checkout and are
 # not installed as packages; their extra dependencies:
@@ -35,8 +34,7 @@ packages = [
     "src.endpoint_tree",
     "src.endpoint_tree.kernels",
     "src.endpoint_tree.concept",
-    "admm",
 ]
 
 [tool.pytest.ini_options]
-testpaths = ["tests"]  # collects tests/dense_arrow and tests/endpoint_tree
+testpaths = ["tests/dense_arrow", "tests/endpoint_tree"]

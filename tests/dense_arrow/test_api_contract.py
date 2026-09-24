@@ -4,7 +4,7 @@ and prepared-solve management (review-driven; no numerics here)."""
 import numpy as np
 import pytest
 
-from experiments.dense_arrow.benchmarks.problems import ProblemSpec, generate_problem
+from tests.dense_arrow.problems import ProblemSpec, generate_problem
 from src.dense_arrow import TreeMatrix, TreeShape, TreeVector
 from src.dense_arrow.problem import tree_vector_from_arrays
 

@@ -1,4 +1,4 @@
-"""Small-root kernel path (plan 3, stages 4-5): scalar root updates,
+"""Small-root kernel path : scalar root updates,
 reduction, and correction for root dimensions below TILE_M."""
 
 import numpy as np
@@ -12,7 +12,7 @@ pytestmark = pytest.mark.gpu
 
 
 def _problem(B, T, n_b, n_r, nrhs=1, seed=0, precision="float64"):
-    from experiments.dense_arrow.benchmarks.problems import ProblemSpec, generate_problem
+    from tests.dense_arrow.problems import ProblemSpec, generate_problem
     spec = ProblemSpec(num_tails=B, horizon=T, block_size=n_b,
                        root_dim=n_r, num_rhs=nrhs,
                        precision=precision, seed=seed)
@@ -88,7 +88,7 @@ def test_small_root_deterministic_repeat():
     scheduling-dependent: repeated factorize/solve agrees to epsilon
     scale.  (SOCU's fused forward substitution uses atomic neighbor
     updates, so whole-solver bitwise determinism is not claimed --
-    plan 9.4.)"""
+    )"""
     from src.dense_arrow.solver import Solver
     problem = _problem(B=7, T=12, n_b=8, n_r=2, seed=11)
     solver = Solver(problem.matrix.shape)

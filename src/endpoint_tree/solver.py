@@ -290,11 +290,21 @@ class EndpointTreeSolver:
         self._has_values = True
         self._has_factor = False
 
-    def factorize(self) -> None:
+    def factorize(self, *, graph: bool = True) -> None:
         """Numeric factorization: SOCU prefix, path-sparse connector
-        transform, fused final node, root (one captured CUDA graph)."""
+        transform, fused final node, root (one captured CUDA graph).
+
+        ``graph=False`` enqueues the kernels directly instead of
+        launching the captured graph; use it when the caller is itself
+        recording a CUDA graph (a graph cannot be launched while a
+        stream is capturing).  The kernels must have been compiled by an
+        earlier ``factorize()`` call."""
         if not self._has_values:
             raise RuntimeError("factorize() requires update() first")
+        if not graph:
+            self._factor_numeric()
+            self._has_factor = True
+            return
         if self._factor_graph is None:
             self._factor_numeric()  # warm compile + real compute
             self.factor_graph_nodes = self._count_launches(

@@ -6,7 +6,7 @@ import pytest
 
 from baselines import cpu_direct
 from baselines import reference as validation
-from experiments.dense_arrow.benchmarks.problems import ProblemSpec, generate_problem
+from tests.dense_arrow.problems import ProblemSpec, generate_problem
 from src.dense_arrow.problem import TreeVector
 
 SMALL = ProblemSpec(num_tails=3, horizon=5, block_size=4,
@@ -46,19 +46,3 @@ def test_direct_solvers_single_vector_rhs(make):
     metrics = validation.compute_metrics(p, z.tail, z.root)
     assert metrics["forward_error"] <= 1e-9
 
-
-def test_runner_records_have_benchmark_contract():
-    from experiments.dense_arrow.benchmarks.runners import RUNNERS
-    p = generate_problem(SMALL)
-    rules = {"warmups": 1, "min_reps": 3, "slow_reps": 2,
-             "min_seconds": 0.0, "max_reps": 5}
-    for kind in ("qdldl", "cholmod"):
-        rec = RUNNERS[kind](p, {"kind": kind}, rules, "cuda:0")
-        if rec["status"] != "ok":  # optional package not installed
-            assert kind in ("qdldl", "cholmod")
-            continue
-        for key in ("warm_factor", "warm_solve", "warm_total",
-                    "warm_total_ms", "cold_first_factor_s",
-                    "cold_first_solve_s", "rhs_relative_residual"):
-            assert key in rec, (kind, key)
-        assert rec["rhs_relative_residual"] < 1e-10

@@ -26,7 +26,7 @@ The public model, for tail ``i`` and root variable ``y``::
     sum_i C_i w_i + R y = q.
 
 Generator-specific types (``ProblemSpec``, ``GeneratedProblem``) are
-benchmark/test fixtures and live in :mod:`benchmarks.problems`.
+benchmark/test fixtures and live in :mod:`tests.dense_arrow.problems`.
 """
 
 from dataclasses import dataclass
